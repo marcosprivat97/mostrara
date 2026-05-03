@@ -1,0 +1,8 @@
+{
+  "buildCommand": "echo 'Build skipped (pre-built locally)'",
+  "installCommand": "echo 'Install skipped'",
+  "outputDirectory": "dist/public",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

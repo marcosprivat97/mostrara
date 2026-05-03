@@ -6,6 +6,17 @@ import storeRouter from "./store";
 import settingsRouter from "./settings";
 import dashboardRouter from "./dashboard";
 import salesRouter from "./sales";
+import ordersRouter from "./orders";
+import paymentsRouter from "./payments";
+import integrationsRouter from "./integrations";
+import supportRouter from "./support";
+import couponsRouter from "./coupons";
+import aiRouter from "./ai";
+import adminRouter from "./admin";
+import subscriptionRouter from "./subscription";
+import clientErrorsRouter from "./client-errors";
+import whatsappRouter from "./whatsapp";
+import unsplashRouter from "./unsplash";
 
 const router: IRouter = Router();
 
@@ -16,5 +27,16 @@ router.use("/store", storeRouter);
 router.use("/settings", settingsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/sales", salesRouter);
+router.use("/orders", ordersRouter);
+router.use("/payments", paymentsRouter);
+router.use("/integrations", integrationsRouter);
+router.use("/support", supportRouter);
+router.use("/coupons", couponsRouter);
+router.use("/ai", aiRouter);
+router.use("/admin", adminRouter);
+router.use("/subscription", subscriptionRouter);
+router.use("/whatsapp", whatsappRouter);
+router.use("/unsplash", unsplashRouter);
+router.use(clientErrorsRouter);
 
 export default router;

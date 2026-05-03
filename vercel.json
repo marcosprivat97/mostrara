@@ -1,5 +1,22 @@
 {
   "framework": "vite",
-  "buildCommand": "pnpm install && pnpm --filter @workspace/vitrinepro run build",
-  "outputDirectory": "artifacts/vitrinepro/dist"
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/mostrara run build",
+  "outputDirectory": "artifacts/mostrara/dist/public",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "artifacts/api-server/dist/**",
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

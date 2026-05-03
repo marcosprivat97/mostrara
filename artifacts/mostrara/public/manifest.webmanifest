@@ -1,0 +1,19 @@
+{
+  "name": "Mostrara",
+  "short_name": "Mostrara",
+  "description": "Painel de vitrine e vendas para lojistas.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo%20do%20site.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

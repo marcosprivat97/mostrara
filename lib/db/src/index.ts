@@ -10,7 +10,28 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const rawDatabaseUrl = process.env.DATABASE_URL;
+const databaseUrl = (() => {
+  try {
+    const url = new URL(rawDatabaseUrl);
+    url.searchParams.delete("sslmode");
+    url.searchParams.delete("sslcert");
+    url.searchParams.delete("sslkey");
+    url.searchParams.delete("sslrootcert");
+    return url.toString();
+  } catch {
+    return rawDatabaseUrl;
+  }
+})();
+const usesLocalDatabase =
+  databaseUrl.includes("localhost") ||
+  databaseUrl.includes("127.0.0.1") ||
+  databaseUrl.includes("host.docker.internal");
+
+export const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: usesLocalDatabase ? false : { rejectUnauthorized: false },
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

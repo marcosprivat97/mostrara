@@ -1,9 +1,13 @@
 import { v2 as cloudinary } from "cloudinary";
+import { env } from "./env.js";
+
+const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const maxImageBytes = 2_500_000;
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: env.cloudinary.cloudName,
+  api_key: env.cloudinary.apiKey,
+  api_secret: env.cloudinary.apiSecret,
 });
 
 export async function uploadImageToCloudinary(
@@ -12,6 +16,14 @@ export async function uploadImageToCloudinary(
   folder: string
 ): Promise<string | null> {
   try {
+    if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
+      return null;
+    }
+    if (!allowedMimeTypes.has(mimeType)) return null;
+    const base64Body = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
+    const approxBytes = Math.ceil((base64Body.length * 3) / 4);
+    if (approxBytes > maxImageBytes) return null;
+
     const uploadStr = base64Data.startsWith("data:") 
       ? base64Data 
       : `data:${mimeType};base64,${base64Data}`;

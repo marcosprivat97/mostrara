@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Contains the **VitrinePro** SaaS app â€” a digital storefront platform for iPhone/phone resellers in Rio de Janeiro, with a white/red/black design system.
+pnpm workspace monorepo using TypeScript. Contains the **Mostrara** SaaS app - a digital storefront platform for sellers, with a white/red/black design system.
 
 ## Stack
 
@@ -17,7 +17,7 @@ pnpm workspace monorepo using TypeScript. Contains the **VitrinePro** SaaS app â
 
 ## Artifacts
 
-### `artifacts/vitrinepro` â€” Frontend (React + Vite)
+### `artifacts/mostrara` - Frontend (React + Vite)
 - Port: 23131, preview path: `/`
 - Color system: white bg, `red-600` primary, `gray-900` sidebar/dark
 - Routes: `/` (Landing), `/dashboard/*` (protected), `/loja/:storeSlug` (public storefront)
@@ -55,3 +55,9 @@ pnpm workspace monorepo using TypeScript. Contains the **VitrinePro** SaaS app â
 - Text: `gray-900` (headings), `gray-500` (body), `gray-400` (muted)
 - Radius: `rounded-xl` (12px), `rounded-2xl` (16px)
 - Font: Inter (system stack via Tailwind)
+
+## Env Notes
+
+- `/.env` is the source of truth in local development.
+- `artifacts/api-server/.env` and `artifacts/mostrara/.env` stay as legacy copies only.
+- `RESEND_API_KEY` and `RESEND_FROM_EMAIL` enable transactional email for recovery, onboarding, and order notifications.

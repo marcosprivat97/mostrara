@@ -1,0 +1,12 @@
+**/node_modules
+**/.git
+**/.cache
+**/.turbo
+**/dist
+**/test-results
+.replit-artifact
+.local
+.vercel
+**/.vercel
+.env
+.env.*

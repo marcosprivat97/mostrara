@@ -1,22 +1,23 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Mostrara API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: products
+  - name: sales
+  - name: store
+  - name: settings
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +25,529 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products]
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+    put:
+      operationId: updateProduct
+      tags: [products]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [product]
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+  /products/upload-photo:
+    post:
+      operationId: uploadProductPhoto
+      tags: [products]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImageUpload"
+      responses:
+        "200":
+          description: Uploaded image
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+  /sales:
+    get:
+      operationId: listSales
+      tags: [sales]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sales
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sales]
+                properties:
+                  sales:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Sale"
+    post:
+      operationId: createSale
+      tags: [sales]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleInput"
+      responses:
+        "201":
+          description: Sale created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sale]
+                properties:
+                  sale:
+                    $ref: "#/components/schemas/Sale"
+  /sales/monthly-summary:
+    get:
+      operationId: getSalesMonthlySummary
+      tags: [sales]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Monthly summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlySummaryResponse"
+  /sales/{id}:
+    delete:
+      operationId: deleteSale
+      tags: [sales]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [products]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+  /settings:
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+  /settings/password:
+    put:
+      operationId: updatePassword
+      tags: [settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+  /settings/logo:
+    post:
+      operationId: uploadLogo
+      tags: [settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImageUpload"
+      responses:
+        "200":
+          description: Logo uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logo_url]
+                properties:
+                  logo_url:
+                    type: string
+  /store/{storeSlug}:
+    get:
+      operationId: getStorefront
+      tags: [store]
+      parameters:
+        - name: storeSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public storefront
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [store, products]
+                properties:
+                  store:
+                    $ref: "#/components/schemas/Storefront"
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Success:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success]
+            properties:
+              success:
+                type: boolean
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    User:
+      type: object
+      required: [id, store_name, owner_name, email, phone, whatsapp, store_slug]
+      properties:
+        id: { type: string }
+        store_name: { type: string }
+        owner_name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        whatsapp: { type: string }
+        store_slug: { type: string }
+        description: { type: string }
+        city: { type: string }
+        logo_url: { type: string }
+        created_at: { type: string }
+    RegisterRequest:
+      type: object
+      required: [store_name, owner_name, email, password, phone, whatsapp]
+      properties:
+        store_name: { type: string }
+        owner_name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+        phone: { type: string }
+        whatsapp: { type: string }
+        city: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user:
+          $ref: "#/components/schemas/User"
+    Product:
+      allOf:
+        - $ref: "#/components/schemas/ProductInput"
+        - type: object
+          required: [id, user_id]
+          properties:
+            id: { type: string }
+            user_id: { type: string }
+            created_at: { type: string }
+            updated_at: { type: string }
+    ProductInput:
+      type: object
+      required: [name, price]
+      properties:
+        name: { type: string }
+        category: { type: string }
+        storage: { type: string }
+        price: { type: number }
+        condition: { type: string }
+        battery: { type: string }
+        warranty: { type: string }
+        status:
+          type: string
+          enum: [disponivel, reservado, vendido]
+        description: { type: string }
+        photos:
+          type: array
+          items: { type: string }
+    Sale:
+      allOf:
+        - $ref: "#/components/schemas/SaleInput"
+        - type: object
+          required: [id, user_id, created_at]
+          properties:
+            id: { type: string }
+            user_id: { type: string }
+            created_at: { type: string }
+    SaleInput:
+      type: object
+      required: [product_name, customer_name, sale_date, product_price, amount_paid]
+      properties:
+        product_id: { type: string }
+        product_name: { type: string }
+        customer_name: { type: string }
+        customer_whatsapp: { type: string }
+        sale_date: { type: string, format: date }
+        product_price: { type: number }
+        amount_paid: { type: number }
+        payment_method:
+          type: string
+          enum: [pix, dinheiro, cartao_credito, cartao_debito, transferencia]
+        notes: { type: string }
+        mark_as_sold: { type: boolean }
+    MonthSummary:
+      type: object
+      required: [month, year, label, total, count]
+      properties:
+        month: { type: string }
+        year: { type: string }
+        label: { type: string }
+        total: { type: number }
+        count: { type: number }
+    MonthlySummaryResponse:
+      type: object
+      required: [months, current_month]
+      properties:
+        months:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthSummary"
+        current_month:
+          $ref: "#/components/schemas/MonthSummary"
+    DashboardStats:
+      type: object
+      required: [total_products, available_products, reserved_products, sold_products, store_active]
+      properties:
+        total_products: { type: number }
+        available_products: { type: number }
+        reserved_products: { type: number }
+        sold_products: { type: number }
+        store_active: { type: boolean }
+    SettingsInput:
+      type: object
+      properties:
+        store_name: { type: string }
+        owner_name: { type: string }
+        phone: { type: string }
+        whatsapp: { type: string }
+        description: { type: string }
+        city: { type: string }
+    PasswordInput:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string }
+        new_password: { type: string, minLength: 6 }
+    ImageUpload:
+      type: object
+      required: [image]
+      properties:
+        image: { type: string }
+        mimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+    Storefront:
+      type: object
+      required: [store_name, owner_name, whatsapp, store_slug]
+      properties:
+        store_name: { type: string }
+        owner_name: { type: string }
+        description: { type: string }
+        city: { type: string }
+        whatsapp: { type: string }
+        logo_url: { type: string }
+        store_slug: { type: string }

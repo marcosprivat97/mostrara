@@ -1,0 +1,127 @@
+1159:                 <X className="w-5 h-5" /> | p=1 q=0 b=1
+1160:               </button> | p=1 q=0 b=1
+1161:             </div> | p=1 q=0 b=1
+1162:             <div className="p-0"> | p=1 q=0 b=1
+1163:               <StoreMap | p=1 q=0 b=1
+1164:                 title="Onde fica a loja" | p=1 q=0 b=1
+1165:                 subtitle={[ | p=1 q=1 b=2
+1166:                   store?.store_address, | p=1 q=1 b=2
+1167:                   store?.store_address_number ? `, ${store?.store_address_number}` : "", | p=1 q=1 b=2
+1168:                   store?.store_neighborhood ? ` - ${store?.store_neighborhood}` : "", | p=1 q=1 b=2
+1169:                   store?.city ? `, ${store?.city}` : "", | p=1 q=1 b=2
+1170:                   store?.state ? ` / ${store?.state}` : "", | p=1 q=1 b=2
+1171:                 ].join("").trim()} | p=1 q=0 b=1
+1172:                 latitude={store?.store_latitude} | p=1 q=0 b=1
+1173:                 longitude={store?.store_longitude} | p=1 q=0 b=1
+1174:               /> | p=1 q=0 b=1
+1175:               <div className="p-6"> | p=1 q=0 b=1
+1176:                 <div className="space-y-3 text-sm"> | p=1 q=0 b=1
+1177:                   <div className="flex items-start gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-4"> | p=1 q=0 b=1
+1178:                     <MapPin className="w-5 h-5 text-gray-400 mt-0.5" /> | p=1 q=0 b=1
+1179:                     <div className="min-w-0"> | p=1 q=0 b=1
+1180:                       <p className="font-semibold text-gray-900">Endereco da loja</p> | p=1 q=0 b=1
+1181:                       <p className="text-gray-500 mt-0.5"> | p=1 q=0 b=1
+1182:                         {[ | p=1 q=1 b=2
+1183:                           store?.store_address, | p=1 q=1 b=2
+1184:                           store?.store_address_number ? `, ${store?.store_address_number}` : "", | p=1 q=1 b=2
+1185:                           store?.store_neighborhood ? ` - ${store?.store_neighborhood}` : "", | p=1 q=1 b=2
+1186:                           store?.city ? `, ${store?.city}` : "", | p=1 q=1 b=2
+1187:                           store?.state ? ` / ${store?.state}` : "", | p=1 q=1 b=2
+1188:                         ].join("").trim() || store?.city || "-"} | p=1 q=0 b=1
+1189:                       </p> | p=1 q=0 b=1
+1190:                     </div> | p=1 q=0 b=1
+1191:                   </div> | p=1 q=0 b=1
+1192:                   <div className="flex items-start gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-4"> | p=1 q=0 b=1
+1193:                     <MessageCircle className="w-5 h-5 text-emerald-600 mt-0.5" /> | p=1 q=0 b=1
+1194:                     <div> | p=1 q=0 b=1
+1195:                       <p className="font-semibold text-gray-900">Atendimento</p> | p=1 q=0 b=1
+1196:                       <p className="text-gray-500 mt-0.5">Pedidos via WhatsApp com Pix direto na plataforma.</p> | p=1 q=0 b=1
+1197:                     </div> | p=1 q=0 b=1
+1198:                   </div> | p=1 q=0 b=1
+1199:                 </div> | p=1 q=0 b=1
+1200:               </div> | p=1 q=0 b=1
+1201:             </div> | p=1 q=0 b=1
+1202:           </div> | p=1 q=0 b=1
+1203:         </DialogContent> | p=1 q=0 b=1
+1204:       </Dialog> | p=1 q=0 b=1
+1205:  | p=1 q=0 b=1
+1206:       {/* Category filter */} | p=1 q=0 b=1
+1207:       </div> | p=1 q=0 b=1
+1208:       )} | p=0 q=0 b=0
+1209:  | p=0 q=0 b=0
+1210:       {/* Products */} | p=0 q=0 b=0
+1211:       <main className="max-w-4xl mx-auto px-4 pb-12"> | p=0 q=0 b=0
+1212:         {loading ? ( | p=1 q=0 b=1
+1213:           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4"> | p=1 q=0 b=1
+1214:             {[...Array(6)].map((_, i) => <ProductSkeleton key={i} />)} | p=1 q=0 b=1
+1215:           </div> | p=1 q=0 b=1
+1216:         ) : filtered.length === 0 ? ( | p=1 q=0 b=1
+1217:           <div className="py-20 text-center"> | p=1 q=0 b=1
+1218:             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" /> | p=1 q=0 b=1
+1219:             <p className="text-gray-400 font-medium"> | p=1 q=0 b=1
+1220:               {search ? "Nenhum produto encontrado" : "Nenhum produto nesta categoria"} | p=1 q=0 b=1
+1221:             </p> | p=1 q=0 b=1
+1222:           </div> | p=1 q=0 b=1
+1223:         ) : ( | p=1 q=0 b=1
+1224:           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4"> | p=1 q=0 b=1
+1225:             {filtered.map(p => ( | p=3 q=0 b=2
+1226:               <ProductCard key={p.id} product={p} onClick={() => setSelectedProduct(p)} /> | p=3 q=0 b=2
+1227:             ))} | p=1 q=0 b=1
+1228:           </div> | p=1 q=0 b=1
+1229:         )} | p=0 q=0 b=0
+1230:       </main> | p=0 q=0 b=0
+1231:  | p=0 q=0 b=0
+1232:       {/* Product detail */} | p=0 q=0 b=0
+1233:       <ProductDetailDialog | p=0 q=0 b=0
+1234:         product={selectedProduct} | p=0 q=0 b=0
+1235:         open={!!selectedProduct} | p=0 q=0 b=0
+1236:         onClose={() => setSelectedProduct(null)} | p=0 q=0 b=0
+1237:         onAddToCart={(p, options) => addItem(p, options)} | p=0 q=0 b=0
+1238:         storeType={store?.store_type} | p=0 q=0 b=0
+1239:       /> | p=0 q=0 b=0
+1240:  | p=0 q=0 b=0
+1241:       {/* Cart */} | p=0 q=0 b=0
+1242:       {store && ( | p=1 q=0 b=1
+1243:         <CartSidebar | p=1 q=0 b=1
+1244:           open={cartOpen} | p=1 q=0 b=1
+1245:           onClose={() => setCartOpen(false)} | p=1 q=0 b=1
+1246:           storeWhatsapp={store.whatsapp} | p=1 q=0 b=1
+1247:           storeName={store.store_name} | p=1 q=0 b=1
+1248:           storeSlug={store.store_slug} | p=1 q=0 b=1
+1249:           storeMercadoPagoConnected={Boolean(store.mercado_pago_connected)} | p=1 q=0 b=1
+1250:           onOrderCreated={rememberOrder} | p=1 q=0 b=1
+1251:         /> | p=1 q=0 b=1
+1252:       )} | p=0 q=0 b=0
+1253:       <Dialog open={!!lastOrder} onOpenChange={(v) => { if (!v) closeLastOrder(); }}> | p=0 q=0 b=0
+1254:         <DialogContent className="max-w-sm border-0 p-0 overflow-hidden shadow-2xl"> | p=0 q=0 b=0
+1255:           <div className="bg-white p-6 text-center"> | p=0 q=0 b=0
+1256:             <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center"> | p=0 q=0 b=0
+1257:               <MessageCircle className="w-8 h-8 text-emerald-600" /> | p=0 q=0 b=0
+1258:             </div> | p=0 q=0 b=0
+1259:             <DialogTitle className="text-xl font-black text-gray-900">Pedido registrado</DialogTitle> | p=0 q=0 b=0
+1260:             <DialogDescription className="text-sm text-gray-500 mt-2"> | p=0 q=0 b=0
+1261:               Seu pedido foi separado no catalogo. Para confirmar a compra, envie a mensagem pronta no WhatsApp da loja. | p=0 q=0 b=0
+1262:             </DialogDescription> | p=0 q=0 b=0
+1263:             {lastOrder && ( | p=1 q=0 b=1
+1264:               <div className="mt-4 rounded-xl bg-gray-50 border border-gray-100 p-3 text-left"> | p=1 q=0 b=1
+1265:                 <p className="text-xs font-semibold text-gray-400 uppercase">Resumo</p> | p=1 q=0 b=1
+1266:                 <p className="text-sm font-semibold text-gray-900 mt-1"> | p=1 q=0 b=1
+1267:                   {lastOrder.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")} | p=1 q=0 b=1
+1268:                 </p> | p=1 q=0 b=1
+1269:                 <p className="text-lg font-black text-gray-900 mt-2">{formatPrice(lastOrder.total)}</p> | p=1 q=0 b=1
+1270:               </div> | p=1 q=0 b=1
+1271:             )} | p=0 q=0 b=0
+1272:             <button | p=0 q=0 b=0
+1273:               onClick={closeLastOrder} | p=0 q=0 b=0
+1274:               className="mt-5 w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors" | p=0 q=0 b=0
+1275:             > | p=0 q=0 b=0
+1276:               Voltar ao catalogo | p=0 q=0 b=0
+1277:             </button> | p=0 q=0 b=0
+1278:           </div> | p=0 q=0 b=0
+1279:         </DialogContent> | p=0 q=0 b=0
+1280:       </Dialog> | p=0 q=0 b=0
+1281:     </div> | p=0 q=0 b=0
+1282:   ); | p=-1 q=0 b=0
+1283: } | p=-1 q=0 b=-1
+1284:  | p=-1 q=0 b=-1
+1285: export default function Storefront() { | p=-1 q=0 b=0
