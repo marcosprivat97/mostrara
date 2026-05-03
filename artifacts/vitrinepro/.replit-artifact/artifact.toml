@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "VitrinePro"
+version = "1.0.0"
+id = "artifacts/vitrinepro"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23131
+
+[services.development]
+run = "pnpm --filter @workspace/vitrinepro run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vitrinepro", "run", "build" ]
+publicDir = "artifacts/vitrinepro/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23131"
+BASE_PATH = "/"
