@@ -143,11 +143,11 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 });
 
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
+  const saleId = String(req.params.id);
   try {
     await db
       .delete(salesTable)
-      .where(and(eq(salesTable.id, id), eq(salesTable.user_id, req.userId!)));
+      .where(and(eq(salesTable.id, saleId), eq(salesTable.user_id, req.userId!)));
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "DeleteSale error");

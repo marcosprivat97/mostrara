@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, usersTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
-import { uploadImageToSupabase } from "../lib/supabase.js";
+import { uploadImageToCloudinary } from "../lib/cloudinary.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -96,10 +96,10 @@ router.post("/logo", async (req: AuthRequest, res) => {
 
   try {
     const mimeType = mime_type || mimeTypeAlt || "image/jpeg";
-    const url = await uploadImageToSupabase(imageData, mimeType, `logos/${req.userId}`);
+    const url = await uploadImageToCloudinary(imageData, mimeType, `vitrinepro/logos/${req.userId}`);
 
     if (!url) {
-      res.status(400).json({ error: "Supabase não configurado. Configure SUPABASE_URL e SUPABASE_SERVICE_KEY para habilitar upload de logo." });
+      res.status(400).json({ error: "Erro ao fazer upload da logomarca no Cloudinary." });
       return;
     }
 

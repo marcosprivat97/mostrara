@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, productsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
-import { uploadImageToSupabase, deleteImageFromSupabase } from "../lib/supabase.js";
+import { uploadImageToCloudinary, deleteImageFromCloudinary } from "../lib/cloudinary.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -32,7 +32,7 @@ async function processPhotos(
     if (photo.startsWith("data:")) {
       const mimeMatch = photo.match(/^data:([^;]+);base64,/);
       const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-      const url = await uploadImageToSupabase(photo, mimeType, `products/${userId}`);
+      const url = await uploadImageToCloudinary(photo, mimeType, `vitrinepro/products/${userId}`);
       if (url) results.push(url);
       else results.push(photo);
     } else {
@@ -95,10 +95,11 @@ router.post("/", async (req: AuthRequest, res) => {
 
 router.get("/:id", async (req: AuthRequest, res) => {
   try {
+    const productId = String(req.params.id);
     const [product] = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.id, req.params.id), eq(productsTable.user_id, req.userId!)));
+      .where(and(eq(productsTable.id, productId), eq(productsTable.user_id, req.userId!)));
 
     if (!product) {
       res.status(404).json({ error: "Produto não encontrado" });
@@ -116,10 +117,11 @@ router.put("/:id", async (req: AuthRequest, res) => {
   const { name, category, storage, price, condition, battery, warranty, status, description, photos } = req.body;
 
   try {
+    const productId = String(req.params.id);
     const [existing] = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.id, req.params.id), eq(productsTable.user_id, req.userId!)));
+      .where(and(eq(productsTable.id, productId), eq(productsTable.user_id, req.userId!)));
 
     if (!existing) {
       res.status(404).json({ error: "Produto não encontrado" });
@@ -133,8 +135,8 @@ router.put("/:id", async (req: AuthRequest, res) => {
       const newRaw = await processPhotos(photos, req.userId!);
       finalPhotos = newRaw;
       for (const old of oldPhotos) {
-        if (!finalPhotos.includes(old) && old.includes("supabase")) {
-          await deleteImageFromSupabase(old);
+        if (!finalPhotos.includes(old) && old.includes("cloudinary.com")) {
+          await deleteImageFromCloudinary(old);
         }
       }
     }
@@ -157,7 +159,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
     const [updated] = await db
       .update(productsTable)
       .set(updateData)
-      .where(eq(productsTable.id, req.params.id))
+      .where(eq(productsTable.id, productId))
       .returning();
 
     res.json({ product: formatProduct(updated) });
@@ -176,9 +178,9 @@ router.post("/upload-photo", async (req: AuthRequest, res) => {
   }
 
   try {
-    const url = await uploadImageToSupabase(image, mimeType || "image/jpeg", `products/${req.userId}`);
+    const url = await uploadImageToCloudinary(image, mimeType || "image/jpeg", `vitrinepro/products/${req.userId}`);
     if (!url) {
-      res.status(400).json({ error: "Supabase não configurado. Configure SUPABASE_URL e SUPABASE_SERVICE_KEY para habilitar upload de fotos." });
+      res.status(400).json({ error: "Erro ao fazer upload da foto no Cloudinary." });
       return;
     }
     res.json({ url });
@@ -190,10 +192,11 @@ router.post("/upload-photo", async (req: AuthRequest, res) => {
 
 router.delete("/:id", async (req: AuthRequest, res) => {
   try {
+    const productId = String(req.params.id);
     const [existing] = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.id, req.params.id), eq(productsTable.user_id, req.userId!)));
+      .where(and(eq(productsTable.id, productId), eq(productsTable.user_id, req.userId!)));
 
     if (!existing) {
       res.status(404).json({ error: "Produto não encontrado" });
@@ -202,12 +205,12 @@ router.delete("/:id", async (req: AuthRequest, res) => {
 
     const photos = parsePhotos(existing.photos);
     for (const photo of photos) {
-      if (photo.includes("supabase")) {
-        await deleteImageFromSupabase(photo);
+      if (photo.includes("cloudinary.com")) {
+        await deleteImageFromCloudinary(photo);
       }
     }
 
-    await db.delete(productsTable).where(eq(productsTable.id, req.params.id));
+    await db.delete(productsTable).where(eq(productsTable.id, productId));
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "DeleteProduct error");

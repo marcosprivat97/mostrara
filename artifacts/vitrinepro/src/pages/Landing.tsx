@@ -68,7 +68,7 @@ export default function Landing() {
 
   const fadeUp = {
     hidden: { opacity: 0, y: 28 },
-    show: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] } }),
+    show: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.5 } }),
   };
 
   return (
@@ -153,7 +153,7 @@ export default function Landing() {
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: 0.4, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ delay: 0.4, duration: 0.7 }}
             className="mt-20 relative"
           >
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-6 shadow-xl">
