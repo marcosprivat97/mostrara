@@ -1,0 +1,5 @@
+{
+  "framework": "vite",
+  "buildCommand": "pnpm install && pnpm --filter @workspace/vitrinepro run build",
+  "outputDirectory": "artifacts/vitrinepro/dist"
+}
