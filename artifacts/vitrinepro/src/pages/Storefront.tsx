@@ -7,7 +7,7 @@ import {
   ShoppingCart, X, ChevronLeft, ChevronRight,
   MapPin, Zap, ShieldCheck, Battery, Store, MessageCircle, Package,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -214,6 +214,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName }: { open: boolea
           <div className="bg-white rounded-2xl overflow-hidden">
             {sent ? (
               <div className="py-16 text-center px-6">
+                <DialogTitle className="sr-only">Pedido enviado</DialogTitle>
+                <DialogDescription className="sr-only">Seu pedido foi enviado com sucesso</DialogDescription>
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <MessageCircle className="w-8 h-8 text-green-600" />
                 </div>
@@ -223,8 +225,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName }: { open: boolea
             ) : (
               <>
                 <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="font-bold text-gray-900">Finalizar pedido</h2>
-                  <p className="text-sm text-gray-400 mt-0.5">Seu pedido vai pro WhatsApp do lojista</p>
+                  <DialogTitle className="font-bold text-gray-900">Finalizar pedido</DialogTitle>
+                  <DialogDescription className="text-sm text-gray-400 mt-0.5">Seu pedido vai pro WhatsApp do lojista</DialogDescription>
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="space-y-1.5">
@@ -300,6 +302,8 @@ function ProductDetailDialog({ product, open, onClose, onAddToCart }: { product:
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg p-0 border-0 shadow-2xl overflow-hidden">
+        <DialogTitle className="sr-only">{product.name}</DialogTitle>
+        <DialogDescription className="sr-only">{product.description || `${product.name} — ${product.condition || ""}`}</DialogDescription>
         <div className="bg-white rounded-2xl overflow-hidden">
           {/* Photo */}
           <div className="relative bg-gray-100 aspect-[4/3]">

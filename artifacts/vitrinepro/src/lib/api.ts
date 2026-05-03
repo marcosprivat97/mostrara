@@ -5,10 +5,13 @@ export async function apiFetch<T>(
   options: RequestInit & { token?: string } = {}
 ): Promise<T> {
   const { token, ...rest } = options;
+  const method = (rest.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(rest.headers as Record<string, string>),
   };
+  if (method !== "GET" && method !== "HEAD" && method !== "DELETE") {
+    headers["Content-Type"] = "application/json";
+  }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, { ...rest, headers });

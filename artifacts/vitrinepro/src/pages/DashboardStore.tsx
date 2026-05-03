@@ -1,10 +1,12 @@
+import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { ExternalLink, Copy, Store, Link2 } from "lucide-react";
+import { ExternalLink, Copy, Store, Link2, Settings } from "lucide-react";
 import { useToastSimple } from "@/hooks/useToastSimple";
 
 export default function DashboardStore() {
   const { user } = useAuth();
   const { success } = useToastSimple();
+  const [, navigate] = useLocation();
 
   const storeUrl = user?.store_slug
     ? `${window.location.origin}${import.meta.env.BASE_URL}loja/${user.store_slug}`
@@ -28,7 +30,11 @@ export default function DashboardStore() {
         <div className="p-6">
           <div className="flex items-center gap-4 mb-6">
             {user?.logo_url ? (
-              <img src={user.logo_url} alt="Logo" className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20" />
+              <img
+                src={user.logo_url}
+                alt="Logo"
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20"
+              />
             ) : (
               <div className="w-16 h-16 rounded-2xl bg-red-600/20 border border-red-600/30 flex items-center justify-center">
                 <Store className="w-8 h-8 text-red-400" />
@@ -73,12 +79,12 @@ export default function DashboardStore() {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 mb-4">
         {[
-          { label: "WhatsApp", value: user?.whatsapp, icon: "📱" },
-          { label: "Telefone", value: user?.phone, icon: "📞" },
+          { label: "WhatsApp",     value: user?.whatsapp,    icon: "📱" },
+          { label: "Telefone",     value: user?.phone,       icon: "📞" },
           { label: "Slug da loja", value: `@${user?.store_slug}`, icon: "🔗" },
-          { label: "Cidade", value: user?.city, icon: "📍" },
+          { label: "Cidade",       value: user?.city,        icon: "📍" },
         ].map((item, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -90,11 +96,13 @@ export default function DashboardStore() {
         ))}
       </div>
 
-      <div className="mt-4 bg-red-50 border border-red-100 rounded-2xl p-4">
-        <p className="text-sm text-red-700 font-medium">
-          💡 Para alterar os dados da sua loja, vá em <strong>Configurações</strong>.
-        </p>
-      </div>
+      <button
+        onClick={() => navigate("/dashboard/settings")}
+        className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 font-semibold text-sm py-3 rounded-2xl transition-colors"
+      >
+        <Settings className="w-4 h-4" />
+        Editar dados da loja
+      </button>
     </div>
   );
 }

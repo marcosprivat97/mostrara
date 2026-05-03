@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
@@ -12,9 +12,13 @@ export default function Landing() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<"login" | "register">("register");
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
-  if (user) { navigate("/dashboard"); return null; }
+  useEffect(() => {
+    if (!isLoading && user) navigate("/dashboard");
+  }, [user, isLoading]);
+
+  if (isLoading || user) return null;
 
   const features = [
     {
@@ -306,7 +310,7 @@ export default function Landing() {
             </div>
             <span className="font-bold text-white text-sm">VitrinePro</span>
           </div>
-          <p className="text-gray-500 text-sm">© 2025 VitrinePro. Feito para lojistas do Rio.</p>
+          <p className="text-gray-500 text-sm">© {new Date().getFullYear()} VitrinePro. Feito para lojistas do Rio.</p>
         </div>
       </footer>
 

@@ -1,9 +1,9 @@
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Package, Copy, ExternalLink, TrendingUp, ArrowRight, Plus, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
-import { useEffect, useState } from "react";
 import { formatPrice } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,6 @@ interface Stats {
   available_products: number;
   reserved_products: number;
   sold_products: number;
-  store_active: boolean;
 }
 
 interface Product {
@@ -32,33 +31,38 @@ interface MonthSummary {
   count: number;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; cls: string }> = {
   disponivel: { label: "Disponível", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  reservado: { label: "Reservado", cls: "bg-amber-50 text-amber-700 border border-amber-200" },
-  vendido: { label: "Vendido", cls: "bg-gray-100 text-gray-500 border border-gray-200" },
+  reservado:  { label: "Reservado",  cls: "bg-amber-50 text-amber-700 border border-amber-200" },
+  vendido:    { label: "Vendido",    cls: "bg-gray-100 text-gray-500 border border-gray-200" },
 };
 
 export default function DashboardOverview() {
   const { user, token } = useAuth();
-  const { success } = useToastSimple();
+  const { success, error: toastError } = useToastSimple();
   const [, navigate] = useLocation();
   const [stats, setStats] = useState<Stats | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
+
   useEffect(() => {
     if (!token) return;
-    const headers = { Authorization: `Bearer ${token}` };
+    setLoading(true);
     Promise.all([
-      apiFetch<Stats>("/dashboard/stats", { headers }),
-      apiFetch<{ products: Product[] }>("/products", { headers }),
-      apiFetch<{ current_month: MonthSummary }>("/sales/monthly-summary", { headers }),
-    ]).then(([s, p, ms]) => {
-      setStats(s);
-      setProducts(p.products.slice(0, 6));
-      setMonthSummary(ms.current_month);
-    }).catch(console.error).finally(() => setLoading(false));
+      apiFetch<Stats>("/dashboard/stats", opts),
+      apiFetch<{ products: Product[] }>("/products", opts),
+      apiFetch<{ current_month: MonthSummary }>("/sales/monthly-summary", opts),
+    ])
+      .then(([s, p, ms]) => {
+        setStats(s);
+        setProducts(p.products.slice(0, 6));
+        setMonthSummary(ms.current_month);
+      })
+      .catch(() => toastError("Erro ao carregar painel"))
+      .finally(() => setLoading(false));
   }, [token]);
 
   const storeUrl = user?.store_slug
@@ -82,6 +86,7 @@ export default function DashboardOverview() {
           <div className="h-64 skeleton rounded-2xl" />
           <div className="h-64 skeleton rounded-2xl" />
         </div>
+        <div className="h-64 skeleton rounded-2xl" />
       </div>
     );
   }
@@ -98,7 +103,7 @@ export default function DashboardOverview() {
         </div>
         <button
           onClick={() => navigate("/dashboard/products")}
-          className="hidden sm:flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+          className="hidden sm:flex items-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Novo produto
@@ -108,10 +113,10 @@ export default function DashboardOverview() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total de produtos", value: stats?.total_products ?? 0, accent: false },
-          { label: "Disponíveis", value: stats?.available_products ?? 0, accent: true },
-          { label: "Reservados", value: stats?.reserved_products ?? 0, accent: false },
-          { label: "Vendidos", value: stats?.sold_products ?? 0, accent: false },
+          { label: "Total",       value: stats?.total_products ?? 0,     accent: false },
+          { label: "Disponíveis", value: stats?.available_products ?? 0, accent: true  },
+          { label: "Reservados",  value: stats?.reserved_products ?? 0,  accent: false },
+          { label: "Vendidos",    value: stats?.sold_products ?? 0,      accent: false },
         ].map((s, i) => (
           <div
             key={i}
@@ -157,7 +162,7 @@ export default function DashboardOverview() {
             <div>
               <p className="text-xs text-gray-400 font-medium">Faturamento</p>
               <p className="text-3xl font-black text-gray-900 mt-0.5">
-                {monthSummary ? formatPrice(monthSummary.total) : "R$ 0,00"}
+                {formatPrice(monthSummary?.total ?? 0)}
               </p>
             </div>
             <div className="h-px bg-gray-100" />
@@ -221,6 +226,7 @@ export default function DashboardOverview() {
             Ver todos <ArrowRight className="w-3 h-3" />
           </button>
         </div>
+
         {products.length === 0 ? (
           <div className="py-16 text-center">
             <Package className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -235,7 +241,7 @@ export default function DashboardOverview() {
         ) : (
           <div className="divide-y divide-gray-50">
             {products.map((p) => {
-              const sc = statusConfig[p.status as keyof typeof statusConfig] || statusConfig.disponivel;
+              const sc = statusConfig[p.status] ?? statusConfig.disponivel;
               const photo = p.photos?.[0];
               return (
                 <div key={p.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition-colors">

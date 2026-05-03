@@ -98,7 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
-    window.location.href = "/";
   };
 
   return (
