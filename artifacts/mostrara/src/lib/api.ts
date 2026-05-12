@@ -1,4 +1,4 @@
-const BASE = "/api";
+const BASE = "https://mostrara.onrender.com/api";
 
 export async function apiFetch<T>(
   path: string,
