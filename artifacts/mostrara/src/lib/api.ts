@@ -24,8 +24,9 @@ export async function apiFetch<T>(
     data = { error: text };
   }
   if (!res.ok) {
-    const errorMessage = data.error || text || res.statusText || "Erro na requisicao";
-    throw new Error(errorMessage);
+    const errorData = await res.json().catch(() => ({}));
+    console.error(`❌ API Error [${res.status}]:`, errorData);
+    throw new Error(errorData.error || `Erro na API: ${res.status}`);
   }
   return data as T;
 }
