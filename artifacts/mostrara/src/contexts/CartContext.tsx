@@ -13,6 +13,10 @@ interface Product {
   description?: string;
   status?: string;
   options?: ProductOption[];
+  weight?: number;
+  width?: number;
+  height?: number;
+  length?: number;
 }
 
 interface ProductOption {

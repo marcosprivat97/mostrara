@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { CartProvider, useCart } from "@/contexts/CartContext";
 import type { ProductOption } from "@/contexts/CartContext";
@@ -73,6 +73,10 @@ interface Product {
   unlimited_stock?: boolean;
   status: string;
   options?: ProductOption[];
+  weight?: number;
+  width?: number;
+  height?: number;
+  length?: number;
 }
 
 function normalizeProduct(p: Partial<Product>): Product {
@@ -95,6 +99,10 @@ function normalizeProduct(p: Partial<Product>): Product {
           .map((option) => ({ name: String(option?.name ?? ""), price: Number(option?.price ?? 0) }))
           .filter((option) => option.name)
       : [],
+    weight: Number(p.weight ?? 0.3),
+    width: Number(p.width ?? 11),
+    height: Number(p.height ?? 2),
+    length: Number(p.length ?? 16),
   };
 }
 
@@ -264,7 +272,7 @@ function ProductCard({ product, isOpen, onClick }: { product: Product; isOpen: b
   );
 }
 
-function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, storeMercadoPagoConnected, isOpen, deliveryFeeType, deliveryFeeAmount, onOrderCreated }: {
+function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, storeMercadoPagoConnected, isOpen, deliveryFeeType, deliveryFeeAmount, storeType, onOrderCreated }: {
   open: boolean;
   onClose: () => void;
   storeWhatsapp: string;
@@ -274,10 +282,16 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   isOpen: boolean;
   deliveryFeeType: string;
   deliveryFeeAmount: number;
+  storeType?: string;
   onOrderCreated: (order: { id: string; items: { name: string; quantity: number }[]; total: number }) => void;
 }) {
   const { items, removeItem, updateQuantity, totalItems, totalPrice, clearCart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  // Estados do Melhor Envio
+  const [shippingRates, setShippingRates] = useState<any[]>([]);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [selectedShipping, setSelectedShipping] = useState<any | null>(null);
+
   const audioSuccess = useMemo(() => typeof Audio !== "undefined" ? new Audio("/sounds/success.mp3") : null, []);
   const [form, setForm] = useState({
     name: "",
@@ -308,7 +322,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     : (selectedShipping?.price || 0);
   
   // Identifica se a loja e de produtos fisicos que podem ir pelo correio
-  const isPhysicalShippingStore = storeType === "celulares";
+  const isPhysicalShippingStore = (storeType || "") === "celulares";
 
   const finalTotal = Math.max(0, totalPrice + (form.deliveryMethod === "delivery" ? currentDeliveryFee : 0) - couponDiscount);
 
@@ -318,11 +332,6 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [mpPayment, setMpPayment] = useState<MercadoPagoPayment | null>(null);
   const [pollingPayment, setPollingPayment] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-
-  // Estados do Melhor Envio
-  const [shippingRates, setShippingRates] = useState<any[]>([]);
-  const [loadingShipping, setLoadingShipping] = useState(false);
-  const [selectedShipping, setSelectedShipping] = useState<any | null>(null);
 
   useEffect(() => {
     const cep = form.cep.replace(/\D/g, "");
@@ -1626,6 +1635,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
           isOpen={store.is_open !== false}
           deliveryFeeType={store.delivery_fee_type || "none"}
           deliveryFeeAmount={store.delivery_fee_amount || 0}
+          storeType={store.store_type}
           onOrderCreated={rememberOrder}
         />
       )}

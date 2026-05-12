@@ -36,6 +36,10 @@ interface User {
   mp_access_token_expires_at?: string | null;
   mp_refresh_token_expires_at?: string | null;
   onboarding_completed_at?: string | null;
+  is_open?: boolean;
+  store_hours?: string;
+  delivery_fee_type?: "none" | "fixed" | "distance";
+  delivery_fee_amount?: number;
 }
 
 interface AuthContextType {
