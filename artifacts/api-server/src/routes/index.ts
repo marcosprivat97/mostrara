@@ -24,6 +24,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/debug", debugRouter);
+router.get("/debug/test", (req, res) => res.json({ status: "debug-active" }));
 router.use("/shipping", shippingRouter);
 router.use("/auth", authRouter);
 router.use("/products", productsRouter);
