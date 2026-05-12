@@ -1,19 +1,9 @@
 {
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/mostrara run build",
+  "buildCommand": "pnpm --filter @workspace/mostrara run build",
   "outputDirectory": "artifacts/mostrara/dist/public",
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "artifacts/api-server/dist/**",
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api"
-    },
     {
       "source": "/((?!api).*)",
       "destination": "/index.html"
