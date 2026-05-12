@@ -12,6 +12,20 @@ router.get("/db-check", async (req, res) => {
     // Find our specific user
     const allUsers = await db.select({ id: usersTable.id, name: usersTable.store_name, email: usersTable.email }).from(usersTable);
     
+    // Force add shipping columns if missing
+    try {
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "width" text DEFAULT '0'`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "height" text DEFAULT '0'`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "length" text DEFAULT '0'`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "weight" text DEFAULT '0'`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "condition" text DEFAULT 'novo'`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "battery" text`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "warranty" text`);
+      await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "unlimited_stock" boolean DEFAULT true`);
+    } catch (e) {
+      console.error("Migration error:", e);
+    }
+
     res.json({
       total_users: allUsers.length,
       users: allUsers,
