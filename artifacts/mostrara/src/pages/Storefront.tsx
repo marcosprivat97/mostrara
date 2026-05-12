@@ -303,6 +303,10 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   const currentDeliveryFee = deliveryFeeType === "fixed" ? deliveryFeeAmount : 0;
+  
+  // Identifica se a loja e de produtos fisicos que podem ir pelo correio
+  const isPhysicalShippingStore = storeType === "celulares";
+
   const finalTotal = Math.max(0, totalPrice + (form.deliveryMethod === "delivery" ? currentDeliveryFee : 0) - couponDiscount);
 
   const [sent, setSent] = useState(false);
@@ -311,6 +315,11 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [mpPayment, setMpPayment] = useState<MercadoPagoPayment | null>(null);
   const [pollingPayment, setPollingPayment] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Estados do Melhor Envio
+  const [shippingRates, setShippingRates] = useState<any[]>([]);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [selectedShipping, setSelectedShipping] = useState<any | null>(null);
 
   useEffect(() => {
     const cep = form.cep.replace(/\D/g, "");
@@ -346,6 +355,55 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     };
   }, [form.cep, form.deliveryMethod]);
 
+  // Busca de Frete (Melhor Envio)
+  useEffect(() => {
+    const cep = form.cep.replace(/\D/g, "");
+    if (form.deliveryMethod !== "delivery" || !isPhysicalShippingStore || cep.length !== 8) {
+      setShippingRates([]);
+      setSelectedShipping(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchRates = async () => {
+      setLoadingShipping(true);
+      try {
+        const rates = await apiFetch<any[]>("/shipping/calculate", {
+          method: "POST",
+          body: JSON.stringify({
+            storeSlug,
+            cep,
+            products: items.map(i => ({
+              id: i.product.id,
+              name: i.product.name,
+              price: i.unitPrice,
+              quantity: i.quantity,
+              weight: i.product.weight || 0.3,
+              width: i.product.width || 11,
+              height: i.product.height || 2,
+              length: i.product.length || 16
+            }))
+          })
+        });
+        if (cancelled) return;
+        setShippingRates(rates || []);
+        // Selecionar o primeiro automaticamente se houver
+        if (rates?.length > 0) setSelectedShipping(rates[0]);
+      } catch (err) {
+        console.error("Erro frete:", err);
+      } finally {
+        if (!cancelled) setLoadingShipping(false);
+      }
+    };
+
+    fetchRates();
+    return () => { cancelled = true; };
+  }, [form.cep, form.deliveryMethod, storeSlug, items]);
+
+  const currentDeliveryFee = deliveryFeeType === "fixed" 
+    ? deliveryFeeAmount 
+    : (selectedShipping?.price || 0);
+
   const sendOrder = () => {
     const pmt = { pix: "Pix", dinheiro: "Dinheiro", cartao_credito: "Cartao de Credito", cartao_debito: "Cartao de Debito" }[form.payment] || form.payment;
     const addressLines = form.deliveryMethod === "delivery"
@@ -356,6 +414,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
           form.neighborhood ? `*Bairro:* ${form.neighborhood}` : "",
           form.city || form.state ? `*Cidade/UF:* ${[form.city, form.state].filter(Boolean).join(" / ")}` : "",
           form.reference ? `*Referencia:* ${form.reference}` : "",
+          selectedShipping ? `*Frete:* ${selectedShipping.name} (${formatPrice(currentDeliveryFee)})` : (currentDeliveryFee > 0 ? `*Frete:* ${formatPrice(currentDeliveryFee)}` : ""),
         ].filter(Boolean)
       : ["*Modalidade:* Retirada no local"];
     const lines = [
@@ -392,6 +451,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
           form.neighborhood ? `*Bairro:* ${form.neighborhood}` : "",
           form.city || form.state ? `*Cidade/UF:* ${[form.city, form.state].filter(Boolean).join(" / ")}` : "",
           form.reference ? `*Referencia:* ${form.reference}` : "",
+          selectedShipping ? `*Frete:* ${selectedShipping.name} (${formatPrice(currentDeliveryFee)})` : (currentDeliveryFee > 0 ? `*Frete:* ${formatPrice(currentDeliveryFee)}` : ""),
         ].filter(Boolean)
       : ["*Modalidade:* Retirada no local"];
     try {
@@ -418,6 +478,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
             customer_whatsapp: form.whatsapp,
             payment_method: form.payment,
             payment_provider: paymentProvider,
+            delivery_fee: currentDeliveryFee,
+            delivery_method_name: selectedShipping?.name || (deliveryFeeType === "fixed" ? "Entrega Fixa" : "Entrega"),
             notes: form.notes,
             coupon_code: form.coupon,
             items: items.map((item) => ({
@@ -763,15 +825,53 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                           className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Referencia</label>
-                        <input
-                          value={form.reference}
-                          onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
-                          placeholder="Perto da padaria, esquina, portao..."
-                          className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all"
-                        />
                       </div>
+
+                      {/* Opcoes de Frete (Melhor Envio) */}
+                      {form.deliveryMethod === "delivery" && form.cep.replace(/\D/g, "").length === 8 && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                            Opcoes de Entrega
+                          </label>
+                          {loadingShipping ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Calculando frete...
+                            </div>
+                          ) : shippingRates.length > 0 ? (
+                            <div className="space-y-2">
+                              {shippingRates.map((rate) => (
+                                <button
+                                  key={rate.id}
+                                  type="button"
+                                  onClick={() => setSelectedShipping(rate)}
+                                  className={cn(
+                                    "w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all",
+                                    selectedShipping?.id === rate.id
+                                      ? "border-red-500 bg-red-50 ring-1 ring-red-500"
+                                      : "border-gray-200 bg-gray-50 hover:border-gray-300"
+                                  )}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    {rate.company?.picture && (
+                                      <img src={rate.company.picture} alt="" className="w-8 h-8 object-contain" />
+                                    )}
+                                    <div>
+                                      <p className="text-sm font-bold text-gray-900">{rate.name}</p>
+                                      <p className="text-xs text-gray-500">
+                                        Prazo: {rate.delivery_range.min}-{rate.delivery_range.max} dias uteis
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm font-black text-gray-900">{formatPrice(rate.price)}</p>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-red-500 font-medium">Nenhuma transportadora disponivel para este CEP.</p>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">

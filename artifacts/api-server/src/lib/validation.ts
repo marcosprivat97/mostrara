@@ -168,6 +168,8 @@ export const publicOrderSchema = z.object({
   payment_provider: z.enum(["whatsapp", "mercadopago_pix"]).optional().default("whatsapp"),
   customer_email: z.union([z.literal(""), z.string().trim().email()]).optional().default(""),
   customer_document: z.string().trim().max(20).optional().default(""),
+  delivery_fee: z.coerce.number().finite().min(0).max(1000).optional().default(0),
+  delivery_method_name: z.string().trim().max(100).optional().default(""),
   notes: optionalTrimmed,
   coupon_code: z.string().trim().max(40).optional().default(""),
   items: z.array(orderItemSchema).min(1).max(30),

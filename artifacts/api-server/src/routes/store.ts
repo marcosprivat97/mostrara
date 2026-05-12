@@ -307,12 +307,16 @@ router.post("/:storeSlug/orders", async (req, res) => {
 
     let deliveryFee = 0;
     if (body.delivery_method === "delivery") {
-      if (user.delivery_fee_type === "fixed") {
+      if (typeof body.delivery_fee === "number" && body.delivery_fee > 0) {
+        deliveryFee = body.delivery_fee;
+      } else if (user.delivery_fee_type === "fixed") {
         deliveryFee = Number(user.delivery_fee_amount || 0);
       }
-      // Se for por distancia, futuramente podemos usar o store_latitude e user cep,
-      // mas por enquanto distance funciona como valor variavel a combinar ou api externa.
     }
+
+    const finalNotes = body.delivery_method_name 
+      ? `[Entrega: ${body.delivery_method_name}] ${body.notes || ""}`.trim()
+      : body.notes;
 
     const total = Math.max(subtotal - discount + deliveryFee, 0);
     const id = uuidv4();
@@ -337,7 +341,7 @@ router.post("/:storeSlug/orders", async (req, res) => {
         state: body.state || "",
         reference: body.reference || "",
         payment_method: body.payment_method,
-        notes: body.notes,
+        notes: finalNotes,
         items: JSON.stringify(safeItems),
         coupon_code: couponCode,
         discount,
@@ -398,7 +402,9 @@ router.post("/:storeSlug/orders", async (req, res) => {
           cash: "Dinheiro",
         };
         const payLabel = paymentLabels[body.payment_method] || body.payment_method;
-        const deliveryLabel = (body.delivery_method || "delivery") === "delivery" ? "🚚 Entrega" : "🏪 Retirada na loja";
+        const deliveryLabel = (body.delivery_method || "delivery") === "delivery" 
+          ? `🚚 Entrega (${body.delivery_method_name || "Normal"})` 
+          : "🏪 Retirada na loja";
         const addressLines = buildAddressLines(body);
 
         const itemLines = safeItems.map(i => {

@@ -17,10 +17,12 @@ import subscriptionRouter from "./subscription";
 import clientErrorsRouter from "./client-errors";
 import whatsappRouter from "./whatsapp";
 import unsplashRouter from "./unsplash";
+import shippingRouter from "./shipping";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/shipping", shippingRouter);
 router.use("/auth", authRouter);
 router.use("/products", productsRouter);
 router.use("/store", storeRouter);
