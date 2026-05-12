@@ -10,25 +10,12 @@ router.get("/db-check", async (req, res) => {
     const productCount = await db.select({ count: sql`count(*)` }).from(productsTable);
     
     // Find our specific user
-    const [user] = await db.select().from(usersTable).where(sql`store_slug = 'lk-cel-bek2'`);
+    const allUsers = await db.select({ id: usersTable.id, name: usersTable.store_name, email: usersTable.email }).from(usersTable);
     
-    let userProducts = 0;
-    let dbError = null;
-    if (user) {
-      try {
-        const results = await db.select().from(productsTable).where(eq(productsTable.user_id, user.id));
-        userProducts = results.length;
-      } catch (e) {
-        dbError = e instanceof Error ? e.message : String(e);
-      }
-    }
-
     res.json({
-      users: Number(userCount[0].count),
-      products: Number(productCount[0].count),
-      target_user: user ? { id: user.id, name: user.store_name } : "Not found",
-      target_user_products: userProducts,
-      db_error: dbError
+      total_users: allUsers.length,
+      users: allUsers,
+      total_products: Number(productCount[0].count)
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "DB Check failed" });
