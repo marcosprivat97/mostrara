@@ -34,6 +34,7 @@ router.get("/stats", async (req: AuthRequest, res) => {
       reserved_products: Number(reserved.count),
       sold_products: Number(sold.count),
       store_active: true,
+      debug_user_id: req.userId,
     });
   } catch (err) {
     req.log.error({ err }, "DashboardStats error");
