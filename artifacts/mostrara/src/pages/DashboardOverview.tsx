@@ -69,11 +69,17 @@ export default function DashboardOverview() {
       apiFetch<{ current_month: MonthSummary }>("/sales/monthly-summary", opts),
     ])
       .then(([s, p, ms]) => {
+        console.log("📊 Stats Recebidos:", s);
+        console.log("📦 Produtos Recebidos:", p);
+        console.log("💰 Resumo Mensal:", ms);
         setStats(s);
         setProducts(Array.isArray(p.products) ? p.products.map(normalizeProduct).slice(0, 6) : []);
         setMonthSummary(ms.current_month);
       })
-      .catch(() => toastError("Erro ao carregar painel"))
+      .catch((err) => {
+        console.error("❌ Erro ao carregar dados do painel:", err);
+        toastError("Erro ao carregar painel");
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
