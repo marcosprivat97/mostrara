@@ -158,6 +158,7 @@ export default function DashboardProducts() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [removingBgIdx, setRemovingBgIdx] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
