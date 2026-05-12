@@ -69,10 +69,9 @@ app.use(
       if (
         !origin || 
         !isProduction || 
-        allowedOrigins.length === 0 || 
-        allowedOrigins.includes(origin) ||
-        origin.endsWith("mostrara.shop") ||
-        origin.endsWith("vercel.app")
+        origin.includes("mostrara.shop") ||
+        origin.includes("vercel.app") ||
+        origin.includes("localhost")
       ) {
         callback(null, true);
         return;
