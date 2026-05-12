@@ -94,7 +94,11 @@ app.use(
   ) => {
     captureServerException(err, { tags: { source: "express-error-handler" } });
     logger.error({ err }, "Unhandled request error");
-    res.status(500).json({ error: "Erro interno do servidor" });
+    res.status(500).json({ 
+      error: "Erro interno do servidor", 
+      message: err.message,
+      stack: env.runtime.isProduction ? undefined : err.stack 
+    });
   },
 );
 
