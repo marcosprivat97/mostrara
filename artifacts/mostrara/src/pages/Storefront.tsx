@@ -302,7 +302,10 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [couponValidationMsg, setCouponValidationMsg] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
-  const currentDeliveryFee = deliveryFeeType === "fixed" ? deliveryFeeAmount : 0;
+  // Cálculo do frete (seja fixo ou calculado pelo Melhor Envio)
+  const currentDeliveryFee = deliveryFeeType === "fixed" 
+    ? deliveryFeeAmount 
+    : (selectedShipping?.price || 0);
   
   // Identifica se a loja e de produtos fisicos que podem ir pelo correio
   const isPhysicalShippingStore = storeType === "celulares";
@@ -399,10 +402,6 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     fetchRates();
     return () => { cancelled = true; };
   }, [form.cep, form.deliveryMethod, storeSlug, items]);
-
-  const currentDeliveryFee = deliveryFeeType === "fixed" 
-    ? deliveryFeeAmount 
-    : (selectedShipping?.price || 0);
 
   const sendOrder = () => {
     const pmt = { pix: "Pix", dinheiro: "Dinheiro", cartao_credito: "Cartao de Credito", cartao_debito: "Cartao de Debito" }[form.payment] || form.payment;
@@ -825,7 +824,6 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                           className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all"
                         />
                       </div>
-                      </div>
 
                       {/* Opcoes de Frete (Melhor Envio) */}
                       {form.deliveryMethod === "delivery" && form.cep.replace(/\D/g, "").length === 8 && (
@@ -993,14 +991,14 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     <button onClick={() => setCheckoutOpen(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition-colors">
                       Voltar
                     </button>
-                  <button
-                    onClick={sendOrderTracked}
-                    disabled={!form.name || !form.whatsapp || (form.deliveryMethod === "delivery" && (!form.cep || !form.street || !form.number || !form.neighborhood || !form.city || !form.state)) || (storeMercadoPagoConnected && form.payment === "pix" && !form.email) || sending}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                  >
-                    {storeMercadoPagoConnected && form.payment === "pix" ? <QrCode className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-                    {sending ? "Abrindo..." : storeMercadoPagoConnected && form.payment === "pix" ? "Gerar Pix" : "Ir ao WhatsApp"}
-                  </button>
+                    <button
+                      onClick={sendOrderTracked}
+                      disabled={!form.name || !form.whatsapp || (form.deliveryMethod === "delivery" && (!form.cep || !form.street || !form.number || !form.neighborhood || !form.city || !form.state)) || (storeMercadoPagoConnected && form.payment === "pix" && !form.email) || sending}
+                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      {storeMercadoPagoConnected && form.payment === "pix" ? <QrCode className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+                      {sending ? "Abrindo..." : storeMercadoPagoConnected && form.payment === "pix" ? "Gerar Pix" : "Ir ao WhatsApp"}
+                    </button>
                   </div>
                 </div>
               </>

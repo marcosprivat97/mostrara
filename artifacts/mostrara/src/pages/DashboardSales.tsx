@@ -134,6 +134,11 @@ export default function DashboardSales() {
       apiFetch<{ current_month: MonthSummary; months: MonthSummary[] }>("/sales/monthly-summary", opts),
       apiFetch<{ orders: PendingOrder[] }>("/orders?status=pendente", opts),
     ])
+      .then(([salesData, summaryData, ordersData]) => {
+        setSales(salesData.sales);
+        setPendingOrders(ordersData.orders);
+        
+        const found = summaryData.months.find(m => Number(m.year) === year && Number(m.month) === month);
         setSummary(found ?? null);
         
         // Sound and Title Notification

@@ -5,7 +5,7 @@ import { usePlan } from "@/hooks/usePlan";
 import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
 import { compressImage } from "@/lib/compress";
-import { User, Lock, Store, ImagePlus, Loader2, Camera, Link2, Unlink, CheckCircle2, AlertTriangle, MapPin, Crown, MessageSquare, Clock, Truck } from "lucide-react";
+import { User, Lock, Store, ImagePlus, Loader2, Camera, Link2, Unlink, CheckCircle2, AlertTriangle, MapPin, Crown, MessageSquare, Clock, Truck, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STORE_TYPE_OPTIONS } from "@/lib/store-types";
 import { StoreMap } from "@/components/StoreMap";
@@ -331,6 +331,13 @@ export default function DashboardSettings() {
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-1">Foto de perfil da loja</p>
             <p className="text-xs text-gray-400 mb-3">JPG, PNG ou WebP. Máx. 5MB.</p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploadingLogo}
+              className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60"
+            >
+              {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
               {uploadingLogo ? "Enviando…" : "Alterar logo"}
             </button>
             <button
