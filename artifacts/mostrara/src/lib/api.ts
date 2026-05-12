@@ -1,4 +1,5 @@
 const BASE = "https://mostrara.onrender.com/api";
+console.log("🚀 Mostrara: Conectado ao Render Backend");
 
 export async function apiFetch<T>(
   path: string,
