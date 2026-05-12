@@ -12,6 +12,17 @@ router.get("/db-check", async (req, res) => {
     // Find our specific user
     const allUsers = await db.select({ id: usersTable.id, name: usersTable.store_name, email: usersTable.email }).from(usersTable);
     
+    const targetUserId = "62c34dd9-dfb8-4c4e-85d7-2456bf2876d4";
+    let targetUserProducts = 0;
+    let productsError = null;
+    
+    try {
+      const results = await db.select().from(productsTable).where(eq(productsTable.user_id, targetUserId));
+      targetUserProducts = results.length;
+    } catch (e) {
+      productsError = e instanceof Error ? e.message : String(e);
+    }
+    
     // Force add shipping columns if missing
     try {
       await db.execute(sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "width" text DEFAULT '0'`);
@@ -29,7 +40,9 @@ router.get("/db-check", async (req, res) => {
     res.json({
       total_users: allUsers.length,
       users: allUsers,
-      total_products: Number(productCount[0].count)
+      total_products: Number(productCount[0].count),
+      target_user_products: targetUserProducts,
+      error: productsError
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "DB Check failed" });
