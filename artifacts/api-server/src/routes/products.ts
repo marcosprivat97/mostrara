@@ -73,7 +73,7 @@ router.get("/", async (req: AuthRequest, res) => {
     res.json({ products: products.map(formatProduct) });
   } catch (err) {
     req.log.error({ err }, "GetProducts error");
-    res.status(500).json({ error: "Erro interno do servidor" });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno do servidor" });
   }
 });
 
