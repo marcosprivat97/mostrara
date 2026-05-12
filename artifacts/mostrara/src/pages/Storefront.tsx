@@ -79,6 +79,18 @@ interface Product {
   length?: number;
 }
 
+const DEFAULT_PRODUCT_DIMENSIONS = {
+  weight: 0.3,
+  width: 11,
+  height: 2,
+  length: 16,
+} as const;
+
+function normalizePositiveNumber(value: unknown, fallback: number, min: number) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= min ? numeric : fallback;
+}
+
 function normalizeProduct(p: Partial<Product>): Product {
   return {
     id: String(p.id ?? crypto.randomUUID()),
@@ -99,10 +111,10 @@ function normalizeProduct(p: Partial<Product>): Product {
           .map((option) => ({ name: String(option?.name ?? ""), price: Number(option?.price ?? 0) }))
           .filter((option) => option.name)
       : [],
-    weight: Number(p.weight ?? 0.3),
-    width: Number(p.width ?? 11),
-    height: Number(p.height ?? 2),
-    length: Number(p.length ?? 16),
+    weight: normalizePositiveNumber(p.weight, DEFAULT_PRODUCT_DIMENSIONS.weight, 0.01),
+    width: normalizePositiveNumber(p.width, DEFAULT_PRODUCT_DIMENSIONS.width, 0.1),
+    height: normalizePositiveNumber(p.height, DEFAULT_PRODUCT_DIMENSIONS.height, 0.1),
+    length: normalizePositiveNumber(p.length, DEFAULT_PRODUCT_DIMENSIONS.length, 0.1),
   };
 }
 

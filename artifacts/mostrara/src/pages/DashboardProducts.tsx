@@ -59,6 +59,36 @@ interface ProductOption {
 }
 
 const CATEGORIES = ["iPhone", "Samsung", "Xiaomi", "Motorola", "Acessórios", "Outro"];
+const DEFAULT_PRODUCT_DIMENSIONS = {
+  width: 11,
+  height: 2,
+  length: 16,
+  weight: 0.3,
+} as const;
+
+function normalizePositiveNumber(value: unknown, fallback: number, min: number) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= min ? numeric : fallback;
+}
+
+function buildDefaultProductFormValues(storeConfig: ReturnType<typeof getStoreTypeConfig>): ProductForm {
+  return {
+    name: "",
+    category: storeConfig.categories[0],
+    storage: "",
+    price: 0,
+    condition: storeConfig.conditions[0],
+    battery: "",
+    warranty: "",
+    status: "disponivel",
+    description: "",
+    options_text: "",
+    stock: 1,
+    unlimited_stock: true,
+    ...DEFAULT_PRODUCT_DIMENSIONS,
+  };
+}
+
 const CONDITIONS = ["Vitrine", "Novo", "Usado A+", "Usado A", "Usado B"];
 const STATUSES = [
   { value: "disponivel", label: "Disponível" },
@@ -92,10 +122,10 @@ function normalizeProduct(p: Partial<Product>): Product {
     photos: Array.isArray(p.photos) ? p.photos.filter(Boolean) : [],
     stock: Number(p.stock ?? 0),
     unlimited_stock: Boolean(p.unlimited_stock),
-    width: Number(p.width ?? 11),
-    height: Number(p.height ?? 2),
-    length: Number(p.length ?? 16),
-    weight: Number(p.weight ?? 0.3),
+    width: normalizePositiveNumber(p.width, DEFAULT_PRODUCT_DIMENSIONS.width, 0.1),
+    height: normalizePositiveNumber(p.height, DEFAULT_PRODUCT_DIMENSIONS.height, 0.1),
+    length: normalizePositiveNumber(p.length, DEFAULT_PRODUCT_DIMENSIONS.length, 0.1),
+    weight: normalizePositiveNumber(p.weight, DEFAULT_PRODUCT_DIMENSIONS.weight, 0.01),
   };
 }
 
@@ -174,7 +204,7 @@ export default function DashboardProducts() {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<ProductForm>({
-    defaultValues: { category: storeConfig.categories[0], condition: storeConfig.conditions[0], status: "disponivel", options_text: "", stock: 1, unlimited_stock: true, width: 11, height: 2, length: 16, weight: 0.3 },
+    defaultValues: buildDefaultProductFormValues(storeConfig),
   });
 
   const load = () => {
@@ -194,7 +224,7 @@ export default function DashboardProducts() {
     }
     setEditingProduct(null);
     setPhotos([]);
-    reset({ category: storeConfig.categories[0], condition: storeConfig.conditions[0], status: "disponivel", name: "", storage: "", price: 0, battery: "", warranty: "", description: "", options_text: "", stock: 1, unlimited_stock: true, width: 11, height: 2, length: 16, weight: 0.3 });
+    reset(buildDefaultProductFormValues(storeConfig));
     setDialogOpen(true);
   };
 
@@ -214,10 +244,10 @@ export default function DashboardProducts() {
       options_text: formatOptionsText(p.options),
       stock: p.stock ?? 1,
       unlimited_stock: p.unlimited_stock ?? true,
-      width: p.width ?? 11,
-      height: p.height ?? 2,
-      length: p.length ?? 16,
-      weight: p.weight ?? 0.3,
+      width: p.width ?? DEFAULT_PRODUCT_DIMENSIONS.width,
+      height: p.height ?? DEFAULT_PRODUCT_DIMENSIONS.height,
+      length: p.length ?? DEFAULT_PRODUCT_DIMENSIONS.length,
+      weight: p.weight ?? DEFAULT_PRODUCT_DIMENSIONS.weight,
     });
     setDialogOpen(true);
   };

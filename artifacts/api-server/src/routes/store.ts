@@ -14,33 +14,10 @@ import { env } from "../lib/env.js";
 import { sendMerchantOrderEmail } from "../lib/email.js";
 import { logSnagEvent } from "../lib/logsnag.js";
 import { evolutionService } from "../lib/evolution.js";
+import { formatProduct } from "../lib/product-data.js";
 
 const router = Router();
 const APP_URL = env.core.appUrl;
-
-function parsePhotos(photosStr: string | null): string[] {
-  try {
-    const parsed = JSON.parse(photosStr || "[]");
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseOptions(optionsStr: string | null): { name: string; price: number }[] {
-  try {
-    const parsed = JSON.parse(optionsStr || "[]");
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => ({
-        name: typeof item?.name === "string" ? item.name.trim() : "",
-        price: Number(item?.price || 0),
-      }))
-      .filter((item) => item.name && Number.isFinite(item.price) && item.price >= 0);
-  } catch {
-    return [];
-  }
-}
 
 function buildAddressLines(input: {
   delivery_method?: string;
@@ -157,11 +134,7 @@ router.get("/:storeSlug", async (req, res) => {
         mercado_pago_connected_at: user.mp_connected_at,
         store_slug: user.store_slug,
       },
-      products: products.map((p) => ({
-        ...p,
-        photos: parsePhotos(p.photos),
-        options: parseOptions(p.options),
-      })),
+      products: products.map(formatProduct),
     });
   } catch (err) {
     req.log.error({ err }, "GetStore error");

@@ -6,43 +6,12 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { uploadImageToCloudinary, deleteImageFromCloudinary } from "../lib/cloudinary.js";
 import { removeBgService } from "../lib/removebg.js";
+import { formatProduct, parsePhotos } from "../lib/product-data.js";
 import { getProductLimit, isPremium } from "../lib/plan.js";
 import { parseBody, productSchema, productUpdateSchema, uploadImageSchema, validationError } from "../lib/validation.js";
 
 const router = Router();
 router.use(authMiddleware);
-
-function parsePhotos(photosStr: string | null): string[] {
-  try {
-    const parsed = JSON.parse(photosStr || "[]");
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseOptions(optionsStr: string | null): { name: string; price: number }[] {
-  try {
-    const parsed = JSON.parse(optionsStr || "[]");
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => ({
-        name: typeof item?.name === "string" ? item.name.trim() : "",
-        price: Number(item?.price || 0),
-      }))
-      .filter((item) => item.name && Number.isFinite(item.price) && item.price >= 0);
-  } catch {
-    return [];
-  }
-}
-
-function formatProduct(p: typeof productsTable.$inferSelect) {
-  return {
-    ...p,
-    photos: parsePhotos(p.photos),
-    options: parseOptions(p.options),
-  };
-}
 
 async function processPhotos(
   photos: string[],
