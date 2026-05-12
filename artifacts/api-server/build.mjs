@@ -97,6 +97,7 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
+      "@workspace/*",
     ],
     sourcemap: "linked",
     plugins: [
