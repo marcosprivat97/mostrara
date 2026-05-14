@@ -24,6 +24,27 @@ function PageSpinner() {
   );
 }
 
+function DashboardNotFound() {
+  const [, navigate] = useLocation();
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+        <div className="w-6 h-6 rounded-full border-2 border-red-300 border-dashed" />
+      </div>
+      <h2 className="text-xl font-bold text-gray-900">Area do painel nao encontrada</h2>
+      <p className="text-sm text-gray-500 mt-2">Esse caminho nao existe no painel do lojista.</p>
+      <button
+        type="button"
+        onClick={() => navigate("/dashboard")}
+        className="mt-5 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+      >
+        Voltar para a visao geral
+      </button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -32,9 +53,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isLoading && !user) {
       setRedirecting(true);
-      navigate("/");
+      navigate("/login");
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, navigate]);
 
   if (isLoading) {
     return (
@@ -50,7 +71,7 @@ export default function Dashboard() {
         <div className="text-center space-y-3">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
           <p className="text-sm text-muted-foreground">
-            {redirecting ? "Voltando para a landing..." : "Abrindo painel..."}
+            {redirecting ? "Voltando para o login..." : "Abrindo painel..."}
           </p>
         </div>
       </div>
@@ -73,6 +94,7 @@ export default function Dashboard() {
             <Route path="/dashboard/support" component={DashboardSupport} />
             <Route path="/dashboard/settings" component={DashboardSettings} />
             <Route path="/dashboard/admin" component={DashboardAdmin} />
+            <Route component={DashboardNotFound} />
           </Switch>
         </Suspense>
       </DashboardLayout>

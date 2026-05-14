@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "canonicalModes": ["food", "retail", "booking"],
+  "canonicalNiches": [
+    "acai",
+    "pizzaria",
+    "quentinhas",
+    "doces",
+    "hamburgueria",
+    "salgados",
+    "celulares",
+    "manicure"
+  ],
+  "legacyAliases": {
+    "marmitex": "quentinhas",
+    "pastelaria": "salgados",
+    "salgadinhos": "salgados"
+  },
+  "unmappedLegacyNiches": {
+    "salao": {
+      "recommendedMode": "booking",
+      "note": "Manter separado de manicure se o produto exigir fluxos de cabelo ou estetica."
+    }
+  },
+  "modes": {
+    "food": {
+      "modules": [
+        "catalog",
+        "categories",
+        "addons",
+        "variants",
+        "delivery",
+        "pickup",
+        "payments",
+        "whatsappCheckout"
+      ],
+      "tables": [
+        "stores",
+        "catalog_categories",
+        "catalog_items",
+        "item_variants",
+        "item_addons",
+        "item_addon_options",
+        "orders",
+        "order_items",
+        "store_hours"
+      ],
+      "sharedItemFields": [
+        "name",
+        "description",
+        "price",
+        "photo",
+        "category",
+        "is_active",
+        "position"
+      ],
+      "sharedOrderFields": [
+        "delivery_method",
+        "payment_method",
+        "notes",
+        "customer_name",
+        "customer_whatsapp"
+      ]
+    },
+    "retail": {
+      "modules": [
+        "catalog",
+        "categories",
+        "variants",
+        "inventory",
+        "shipping",
+        "pickup",
+        "payments",
+        "whatsappCheckout"
+      ],
+      "tables": [
+        "stores",
+        "catalog_categories",
+        "catalog_items",
+        "item_variants",
+        "inventory",
+        "orders",
+        "order_items",
+        "store_hours"
+      ],
+      "sharedItemFields": [
+        "brand",
+        "model",
+        "description",
+        "price",
+        "sale_price",
+        "photo",
+        "is_active",
+        "position"
+      ],
+      "sharedOrderFields": [
+        "delivery_method",
+        "payment_method",
+        "notes",
+        "customer_name",
+        "customer_whatsapp"
+      ]
+    },
+    "booking": {
+      "modules": [
+        "catalog",
+        "services",
+        "availability",
+        "professionals",
+        "appointments",
+        "payments",
+        "whatsappCheckout"
+      ],
+      "tables": [
+        "stores",
+        "catalog_categories",
+        "catalog_items",
+        "item_variants",
+        "professionals",
+        "appointments",
+        "orders",
+        "order_items",
+        "store_hours"
+      ],
+      "sharedItemFields": [
+        "service_name",
+        "description",
+        "price",
+        "duration_minutes",
+        "photo",
+        "is_active",
+        "position"
+      ],
+      "sharedOrderFields": [
+        "appointment_id",
+        "payment_method",
+        "notes",
+        "customer_name",
+        "customer_whatsapp"
+      ]
+    }
+  },
+  "niches": {
+    "acai": {
+      "mode": "food",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["sizes", "bases", "addons", "complements"],
+      "storefrontBehaviors": ["tamanhos", "complementos", "montagemPersonalizada"]
+    },
+    "pizzaria": {
+      "mode": "food",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["sizes", "dough", "flavors", "borders", "halfAndHalf"],
+      "storefrontBehaviors": ["meioAMeio", "bordaRecheada", "saboresPorTamanho"]
+    },
+    "quentinhas": {
+      "mode": "food",
+      "legacyAliases": ["marmitex"],
+      "requiredFieldGroups": ["dailyMenu", "proteins", "sides", "combos"],
+      "storefrontBehaviors": ["cardapioDoDia", "combos", "disponibilidadePorTurno"]
+    },
+    "doces": {
+      "mode": "food",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["flavors", "kits", "specialOrders"],
+      "storefrontBehaviors": ["caixas", "encomendas", "adicionaisDoces"]
+    },
+    "hamburgueria": {
+      "mode": "food",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["combos", "addons", "proteinOptions", "drinkPairs"],
+      "storefrontBehaviors": ["extras", "observacoes", "comboUpsell"]
+    },
+    "salgados": {
+      "mode": "food",
+      "legacyAliases": ["pastelaria", "salgadinhos"],
+      "requiredFieldGroups": ["unit", "dozen", "partyKit", "specialOrders"],
+      "storefrontBehaviors": ["porUnidade", "porCento", "kitFesta"]
+    },
+    "celulares": {
+      "mode": "retail",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["brand", "model", "storage", "color", "condition", "warranty", "stock"],
+      "storefrontBehaviors": ["skuPorVariacao", "estoquePorCor", "fichaTecnica"]
+    },
+    "manicure": {
+      "mode": "booking",
+      "legacyAliases": [],
+      "requiredFieldGroups": ["services", "duration", "professional", "availability", "bufferTime"],
+      "storefrontBehaviors": ["agendamento", "profissional", "horariosDisponiveis"]
+    }
+  }
+}

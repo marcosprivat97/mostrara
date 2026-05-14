@@ -40,7 +40,7 @@ function StoreMapInner({
           <p className="text-sm font-semibold text-gray-900">{title}</p>
         </div>
         <p className="text-sm text-gray-500">
-          Defina o endereco completo da loja nas configuracoes para exibir o mapa.
+          A localizacao detalhada nao esta disponivel no momento. Confirme o endereco diretamente com a loja.
         </p>
       </div>
     );

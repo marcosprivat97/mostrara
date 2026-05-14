@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToastSimple } from "@/hooks/useToastSimple";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { buildStoreUrl } from "@/lib/urls";
 
 const baseNavItems = [
@@ -48,7 +49,7 @@ function NavLink({ item, active, locked, onClick }: { item: NavItem; active: boo
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { isPremium, plan } = usePlan();
-  const { success } = useToastSimple();
+  const { success, error } = useToastSimple();
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -63,8 +64,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const copyStoreUrl = async () => {
     if (!storeUrl) return;
-    await navigator.clipboard.writeText(storeUrl);
-    success("Link da loja copiado");
+    try {
+      await copyTextToClipboard(storeUrl);
+      success("Link da loja copiado");
+    } catch {
+      error("Nao foi possivel copiar o link da loja");
+    }
   };
 
   const mobileNavItems = [

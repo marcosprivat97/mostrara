@@ -1,5 +1,27 @@
-const BASE = "https://mostrara.onrender.com/api";
-console.log("Mostrara: Conectado ao Render Backend");
+const DEFAULT_REMOTE_API_BASE = "https://mostrara.onrender.com/api";
+const DEFAULT_LOCAL_API_BASE = "http://localhost:23131/api";
+
+function normalizeApiBase(base: string) {
+  return base.replace(/\/+$/, "");
+}
+
+function resolveApiBaseUrl() {
+  const envBase = import.meta.env.VITE_API_URL?.trim();
+  if (envBase) return normalizeApiBase(envBase);
+  return import.meta.env.DEV ? DEFAULT_LOCAL_API_BASE : DEFAULT_REMOTE_API_BASE;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
+export function buildApiUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
+
+if (import.meta.env.DEV) {
+  console.info(`[Mostrara] API base: ${API_BASE_URL}`);
+}
 
 function extractApiErrorMessage(status: number, data: unknown) {
   if (data && typeof data === "object") {
@@ -34,7 +56,7 @@ export async function apiFetch<T>(
   }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...rest, headers });
+  const res = await fetch(buildApiUrl(path), { ...rest, headers });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try {

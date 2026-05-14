@@ -20,6 +20,10 @@ interface Order {
   id: string;
   customer_name: string;
   customer_whatsapp: string;
+  appointment_date?: string;
+  appointment_time?: string;
+  appointment_end_time?: string;
+  appointment_duration_minutes?: number;
   payment_method: string;
   payment_status: string;
   delivery_method?: string;
@@ -52,6 +56,12 @@ const PAYMENT_LABELS: Record<string, string> = {
   dinheiro: "Dinheiro", cartao_credito: "Cartão Crédito", cartao_debito: "Cartão Débito",
   cash: "Dinheiro", credit: "Cartão Crédito", debit: "Cartão Débito",
 };
+
+function formatAppointment(order: Order) {
+  if (!order.appointment_date || !order.appointment_time) return "";
+  const date = order.appointment_date.split("-").reverse().join("/");
+  return `${date} ${order.appointment_time}${order.appointment_end_time ? `-${order.appointment_end_time}` : ""}`;
+}
 
 // Local notification sound
 let notifAudio: HTMLAudioElement | null = null;
@@ -197,6 +207,11 @@ export default function DashboardOrdersKanban() {
                               <Clock className="w-3 h-3" />
                               {new Date(order.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                             </p>
+                            {formatAppointment(order) && (
+                              <p className="text-xs text-emerald-700 font-semibold mt-1">
+                                Agendamento: {formatAppointment(order)}
+                              </p>
+                            )}
                           </div>
                           <p className="font-black text-gray-900 text-sm">{formatPrice(order.total)}</p>
                         </div>
@@ -263,6 +278,13 @@ export default function DashboardOrdersKanban() {
                                     {order.customer_whatsapp}
                                   </button>
                                 </div>
+
+                                {formatAppointment(order) && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-gray-500">🗓️ Agendamento:</span>
+                                    <span className="font-semibold text-gray-700">{formatAppointment(order)}</span>
+                                  </div>
+                                )}
 
                                 {/* Address */}
                                 {(order.delivery_method || "delivery") === "delivery" && hasAddress && (
@@ -358,6 +380,7 @@ export default function DashboardOrdersKanban() {
         <div className="mb-4 border-b border-dashed border-black pb-4">
           <p className="font-bold uppercase text-base">{printingOrder.customer_name}</p>
           <p className="text-sm">WhatsApp: {printingOrder.customer_whatsapp}</p>
+          {formatAppointment(printingOrder) && <p className="text-sm">Agendamento: {formatAppointment(printingOrder)}</p>}
           <p className="text-sm">Pagamento: {PAYMENT_LABELS[printingOrder.payment_method] || printingOrder.payment_method}</p>
           <p className="text-sm">{(printingOrder.delivery_method || "delivery") === "delivery" ? "Entrega" : "Retirada na loja"}</p>
         </div>

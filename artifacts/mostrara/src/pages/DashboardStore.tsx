@@ -2,12 +2,13 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { ExternalLink, Copy, Store, Link2, Settings, Phone, Smartphone, MapPin } from "lucide-react";
 import { useToastSimple } from "@/hooks/useToastSimple";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { buildStoreUrl } from "@/lib/urls";
 import { StoreMap } from "@/components/StoreMap";
 
 export default function DashboardStore() {
   const { user } = useAuth();
-  const { success } = useToastSimple();
+  const { success, error } = useToastSimple();
   const [, navigate] = useLocation();
 
   const storeUrl = user?.store_slug ? buildStoreUrl(user.store_slug) : null;
@@ -21,8 +22,12 @@ export default function DashboardStore() {
 
   const copyLink = async () => {
     if (!storeUrl) return;
-    await navigator.clipboard.writeText(storeUrl);
-    success("Link copiado");
+    try {
+      await copyTextToClipboard(storeUrl);
+      success("Link copiado");
+    } catch {
+      error("Nao foi possivel copiar o link da vitrine");
+    }
   };
 
   const info = [

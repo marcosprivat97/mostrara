@@ -3,6 +3,8 @@
 **/.cache
 **/.turbo
 **/dist
+!artifacts/api-server/dist
+!artifacts/api-server/dist/**
 **/test-results
 .replit-artifact
 .local

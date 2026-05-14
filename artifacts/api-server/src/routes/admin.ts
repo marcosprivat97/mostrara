@@ -7,6 +7,7 @@ import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { requireAdmin } from "../lib/admin.js";
 import { isPremium } from "../lib/plan.js";
 import { logSnagEvent, logSnagIdentify } from "../lib/logsnag.js";
+import { resolveStoreTaxonomy } from "../lib/store-taxonomy.js";
 import { adminCreateUserSchema, adminUpdatePlanSchema, parseBody, supportTicketUpdateSchema, validationError } from "../lib/validation.js";
 import { sanitizeUser } from "./auth.js";
 import { signToken } from "../lib/auth.js";
@@ -77,6 +78,7 @@ router.get("/stores", async (_req, res) => {
 router.post("/stores", async (req, res) => {
   try {
     const body = parseBody(adminCreateUserSchema, req.body);
+    const taxonomy = resolveStoreTaxonomy(body.store_type);
     const existingEmail = await db.select().from(usersTable).where(eq(usersTable.email, body.email));
     if (existingEmail.length) {
       res.status(409).json({ error: "E-mail ja cadastrado" });
@@ -96,6 +98,9 @@ router.post("/stores", async (req, res) => {
       phone: body.phone,
       whatsapp: body.whatsapp,
       store_slug: body.store_slug,
+      store_type: taxonomy.storeType,
+      store_mode: taxonomy.storeMode,
+      canonical_niche: taxonomy.canonicalNiche,
       city: body.city || "Rio de Janeiro",
       description: "",
       logo_url: "",

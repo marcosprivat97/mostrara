@@ -12,6 +12,8 @@ interface User {
   whatsapp: string;
   store_slug: string;
   store_type?: string;
+  store_mode?: string | null;
+  canonical_niche?: string | null;
   description?: string;
   city?: string;
   state?: string;

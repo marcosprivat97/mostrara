@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { CartProvider, useCart } from "@/contexts/CartContext";
-import type { ProductOption } from "@/contexts/CartContext";
+import type { CartItem, ProductOption } from "@/contexts/CartContext";
 import { apiFetch } from "@/lib/api";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { formatPrice } from "@/lib/formatters";
 import {
   ShoppingCart, X, ChevronLeft, ChevronRight,
@@ -14,8 +15,10 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { getStoreTypeConfig } from "@/lib/store-types";
+import { formatDurationMinutes, getSaoPauloToday } from "@/lib/service-schedule";
 import { StoreMap } from "@/components/StoreMap";
 import { trackAnalytics } from "@/lib/analytics";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 import { DotLottiePlayer } from "@dotlottie/react-player";
 
 interface StoreData {
@@ -39,6 +42,8 @@ interface StoreData {
   theme_accent?: string;
   store_slug: string;
   store_type?: string;
+  store_mode?: string | null;
+  canonical_niche?: string | null;
   is_open?: boolean;
   delivery_fee_type?: "none" | "fixed" | "distance";
   delivery_fee_amount?: number;
@@ -77,6 +82,12 @@ interface Product {
   width?: number;
   height?: number;
   length?: number;
+}
+
+interface AvailabilitySlot {
+  start: string;
+  end: string;
+  label: string;
 }
 
 const DEFAULT_PRODUCT_DIMENSIONS = {
@@ -118,6 +129,158 @@ function normalizeProduct(p: Partial<Product>): Product {
   };
 }
 
+function buildCartOptionKey(selectedOptions: ProductOption[] = []) {
+  return selectedOptions.map((option) => option.name).sort().join("|");
+}
+
+function findCartMatch(items: CartItem[], productId: string, selectedOptions: ProductOption[] = []) {
+  const optionKey = buildCartOptionKey(selectedOptions);
+  return items.find((item) => (
+    item.product.id === productId &&
+    buildCartOptionKey(item.selectedOptions) === optionKey
+  ));
+}
+
+function isProductAvailable(product: Product) {
+  if (product.status !== "disponivel") return false;
+  if (product.unlimited_stock) return true;
+  return Number(product.stock ?? 0) > 0;
+}
+
+function getStoreExperience(storeType?: string | null) {
+  const storeConfig = getStoreTypeConfig(storeType);
+
+  if (storeConfig.mode === "booking") {
+    return {
+      storeConfig,
+      usesShippingCalculator: false,
+      labels: {
+        searchPlaceholder: `Buscar ${storeConfig.productPlural}...`,
+        allItems: "Todos os servicos",
+        itemCountSingular: "servico",
+        itemCountPlural: "servicos",
+        emptyCatalogTitle: "Sem servicos",
+        emptyCatalogDescription: "Esta categoria ainda nao tem servicos cadastrados.",
+        cartTitle: "Solicitacao",
+        emptyCartTitle: "Nenhum servico selecionado",
+        floatingCartLabel: "Ver solicitacao",
+        checkoutTitle: "Solicitar agendamento",
+        checkoutDescription: "Escolha como quer ser atendido e informe a data e o horario desejados.",
+        checkoutButton: "Solicitar agendamento",
+        whatsappButton: "Enviar solicitacao",
+        addAction: "Agendar",
+        detailAction: "Adicionar a solicitacao",
+        inCartAction: "Na solicitacao",
+        viewAction: "Ver detalhes",
+        optionsTitle: "Opcoes do servico",
+        orderReceivedTitle: "Solicitacao enviada!",
+        orderReceivedDescription: "A loja recebeu sua solicitacao e vai confirmar o horario pelo WhatsApp.",
+        orderRegisteredTitle: "Solicitacao registrada",
+        orderRegisteredDescription: "Sua solicitacao foi enviada. Confirme os detalhes no WhatsApp da loja.",
+        backToCatalog: "Voltar ao catalogo",
+        deliveryMethodLabel: "Tipo de atendimento",
+        deliveryOptionLabel: "Atendimento a domicilio",
+        pickupOptionLabel: "Atendimento no local",
+        pickupSummary: "Cliente escolheu atendimento no local.",
+        deliveryHint: "Informe o endereco para atendimento a domicilio.",
+        deliveryFeeLabel: "Taxa de visita",
+        notesLabel: "Detalhes do atendimento",
+        notesPlaceholder: "Explique o que deseja fazer, preferencias e observacoes.",
+        infoDescription: "Agendamentos via WhatsApp com opcao de Pix direto na plataforma.",
+        appointmentDateLabel: "Data desejada *",
+        appointmentTimeLabel: "Horario desejado *",
+        appointmentHint: "Escolha quando voce prefere ser atendido.",
+      },
+    };
+  }
+
+  if (storeConfig.mode === "food") {
+    return {
+      storeConfig,
+      usesShippingCalculator: false,
+      labels: {
+        searchPlaceholder: `Buscar ${storeConfig.productPlural}...`,
+        allItems: "Todos os itens",
+        itemCountSingular: "item",
+        itemCountPlural: "itens",
+        emptyCatalogTitle: "Sem itens",
+        emptyCatalogDescription: "Esta categoria ainda nao tem itens disponiveis.",
+        cartTitle: "Sacola",
+        emptyCartTitle: "Sacola vazia",
+        floatingCartLabel: "Ver sacola",
+        checkoutTitle: "Finalizar pedido",
+        checkoutDescription: "Confira os itens e informe como deseja receber o pedido.",
+        checkoutButton: "Finalizar pedido",
+        whatsappButton: "Ir ao WhatsApp",
+        addAction: "Adicionar",
+        detailAction: "Adicionar a sacola",
+        inCartAction: "Na sacola",
+        viewAction: "Montar",
+        optionsTitle: "Adicionais e complementos",
+        orderReceivedTitle: "Pedido recebido!",
+        orderReceivedDescription: "A loja recebeu seu pedido e vai confirmar no WhatsApp.",
+        orderRegisteredTitle: "Pedido registrado",
+        orderRegisteredDescription: "Seu pedido foi enviado para a loja. Agora confirme a compra no WhatsApp.",
+        backToCatalog: "Voltar ao catalogo",
+        deliveryMethodLabel: "Como receber",
+        deliveryOptionLabel: "Entregar no endereco",
+        pickupOptionLabel: "Retirar no balcao",
+        pickupSummary: "Cliente escolheu retirada no balcao.",
+        deliveryHint: "Informe o endereco para a entrega.",
+        deliveryFeeLabel: "Taxa de entrega",
+        notesLabel: "Observacoes",
+        notesPlaceholder: "Ex: sem cebola, pouco gelo, ponto da pizza...",
+        infoDescription: "Pedidos via WhatsApp com Pix direto na plataforma.",
+        appointmentDateLabel: "",
+        appointmentTimeLabel: "",
+        appointmentHint: "",
+      },
+    };
+  }
+
+  return {
+    storeConfig,
+    usesShippingCalculator: storeConfig.capabilities.shippingCalculator,
+    labels: {
+      searchPlaceholder: `Buscar ${storeConfig.productPlural}...`,
+      allItems: "Todos os produtos",
+      itemCountSingular: "item",
+      itemCountPlural: "itens",
+      emptyCatalogTitle: "Sem produtos",
+      emptyCatalogDescription: "Esta categoria ainda nao tem produtos.",
+      cartTitle: "Carrinho",
+      emptyCartTitle: "Carrinho vazio",
+      floatingCartLabel: "Ver carrinho",
+      checkoutTitle: "Finalizar pedido",
+      checkoutDescription: "Preencha os dados abaixo para finalizar o seu pedido.",
+      checkoutButton: "Finalizar pedido",
+      whatsappButton: "Ir ao WhatsApp",
+      addAction: "Adicionar",
+      detailAction: "Adicionar ao carrinho",
+      inCartAction: "No carrinho",
+      viewAction: "Ver detalhes",
+      optionsTitle: "Variacoes e adicionais",
+      orderReceivedTitle: "Pedido recebido!",
+      orderReceivedDescription: "A loja recebeu seu pedido e entrara em contato em breve.",
+      orderRegisteredTitle: "Pedido registrado",
+      orderRegisteredDescription: "Seu pedido foi separado no catalogo. Para confirmar a compra, envie a mensagem pronta no WhatsApp da loja.",
+      backToCatalog: "Voltar ao catalogo",
+      deliveryMethodLabel: "Modalidade",
+      deliveryOptionLabel: "Entrega",
+      pickupOptionLabel: "Retirada no local",
+      pickupSummary: "Cliente escolheu retirada no local.",
+      deliveryHint: "ViaCEP preenche o endereco automaticamente quando o CEP for valido.",
+      deliveryFeeLabel: "Frete",
+      notesLabel: "Observacoes",
+      notesPlaceholder: "Alguma observacao...",
+      infoDescription: "Pedidos via WhatsApp com Pix direto na plataforma.",
+      appointmentDateLabel: "",
+      appointmentTimeLabel: "",
+      appointmentHint: "",
+    },
+  };
+}
+
 function ProductSkeleton() {
   return (
     <motion.div 
@@ -148,11 +311,24 @@ function ProductSkeleton() {
   );
 }
 
-function ProductCard({ product, isOpen, onClick }: { product: Product; isOpen: boolean; onClick: () => void }) {
-  const { items, addItem, removeItem } = useCart();
-  const inCart = items.some(i => i.product.id === product.id);
+function ProductCard({
+  product,
+  isOpen,
+  onClick,
+  storeType,
+}: {
+  product: Product;
+  isOpen: boolean;
+  onClick: () => void;
+  storeType?: string;
+}) {
+  const { items, addItem } = useCart();
+  const cartMatch = findCartMatch(items, product.id);
+  const inCart = Boolean(cartMatch);
+  const available = isProductAvailable(product);
   const photo = Array.isArray(product.photos) ? product.photos[0] : undefined;
   const hasOptions = Boolean(product.options?.length);
+  const { labels } = getStoreExperience(storeType);
 
   return (
     <motion.div
@@ -238,19 +414,18 @@ function ProductCard({ product, isOpen, onClick }: { product: Product; isOpen: b
           <motion.button
             onClick={e => {
               e.stopPropagation();
-              if (!isOpen) return;
+              if (!isOpen || !available) return;
               if (hasOptions) {
                 onClick();
                 return;
               }
-              const existing = items.find(i => i.product.id === product.id);
-              inCart && existing ? removeItem(existing.id) : addItem(product);
+              addItem(product);
             }}
-            whileHover={isOpen ? { scale: 1.05 } : {}}
-            whileTap={isOpen ? { scale: 0.95 } : {}}
+            whileHover={isOpen && available ? { scale: 1.05 } : {}}
+            whileTap={isOpen && available ? { scale: 0.95 } : {}}
             className={cn(
               "flex-1 text-sm font-bold py-3 px-4 rounded-2xl transition-all duration-300 shadow-md",
-              !isOpen
+              !isOpen || !available
                 ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
                 : inCart
                 ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg"
@@ -261,20 +436,24 @@ function ProductCard({ product, isOpen, onClick }: { product: Product; isOpen: b
               <span className="flex items-center justify-center gap-1 text-xs">
                 Fechada
               </span>
+            ) : !available ? (
+              <span className="flex items-center justify-center gap-1 text-xs">
+                Indisponivel
+              </span>
             ) : hasOptions ? (
               <span className="flex items-center justify-center gap-1">
                 <Search className="w-4 h-4" />
-                Ver
+                {labels.viewAction}
               </span>
             ) : inCart ? (
               <span className="flex items-center justify-center gap-1">
                 <CheckCircle2 className="w-4 h-4" />
-                No carrinho
+                Adicionar mais
               </span>
             ) : (
               <span className="flex items-center justify-center gap-1">
                 <ShoppingCart className="w-4 h-4" />
-                Adicionar
+                {labels.addAction}
               </span>
             )}
           </motion.button>
@@ -297,12 +476,19 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   storeType?: string;
   onOrderCreated: (order: { id: string; items: { name: string; quantity: number }[]; total: number }) => void;
 }) {
-  const { items, removeItem, updateQuantity, totalItems, totalPrice, clearCart } = useCart();
+  const { items, updateQuantity, totalItems, totalPrice, clearCart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   // Estados do Melhor Envio
   const [shippingRates, setShippingRates] = useState<any[]>([]);
   const [loadingShipping, setLoadingShipping] = useState(false);
+  const [shippingError, setShippingError] = useState("");
   const [selectedShipping, setSelectedShipping] = useState<any | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<AvailabilitySlot[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [appointmentDurationMinutes, setAppointmentDurationMinutes] = useState(0);
+  const { storeConfig, usesShippingCalculator, labels } = getStoreExperience(storeType);
+  const today = useMemo(() => getSaoPauloToday(), []);
 
   const audioSuccess = useMemo(() => typeof Audio !== "undefined" ? new Audio("/sounds/success.mp3") : null, []);
   const [form, setForm] = useState({
@@ -311,7 +497,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     cpf: "",
     whatsapp: "",
     payment: "pix",
-    deliveryMethod: "delivery",
+    deliveryMethod: storeConfig.capabilities.localDelivery ? "delivery" : "pickup",
     cep: "",
     street: "",
     number: "",
@@ -322,6 +508,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     reference: "",
     notes: "",
     coupon: "",
+    appointmentDate: "",
+    appointmentTime: "",
   });
 
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -329,14 +517,25 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   // Cálculo do frete (seja fixo ou calculado pelo Melhor Envio)
-  const currentDeliveryFee = deliveryFeeType === "fixed" 
-    ? deliveryFeeAmount 
+  const supportsDelivery = storeConfig.capabilities.localDelivery;
+  const supportsPickup = storeConfig.capabilities.pickup;
+  const requiresSchedule = storeConfig.capabilities.serviceScheduling;
+  const needsAddress = form.deliveryMethod === "delivery" && supportsDelivery;
+  const needsShippingQuote = needsAddress && usesShippingCalculator && deliveryFeeType === "distance";
+  const shippingQuoteAddressReady = needsShippingQuote && Boolean(form.street && form.number && form.city && form.state);
+  const currentDeliveryFee = !needsAddress
+    ? 0
+    : deliveryFeeType === "fixed"
+    ? deliveryFeeAmount
     : (selectedShipping?.price || 0);
   
   // Identifica se a loja e de produtos fisicos que podem ir pelo correio
-  const isPhysicalShippingStore = (storeType || "") === "celulares";
+  const deliveryMethodName = form.deliveryMethod === "delivery"
+    ? selectedShipping?.name || labels.deliveryOptionLabel
+    : labels.pickupOptionLabel;
+  const selectedAppointmentSlot = availableSlots.find((slot) => slot.start === form.appointmentTime) || null;
 
-  const finalTotal = Math.max(0, totalPrice + (form.deliveryMethod === "delivery" ? currentDeliveryFee : 0) - couponDiscount);
+  const finalTotal = Math.max(0, totalPrice + currentDeliveryFee - couponDiscount);
 
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -344,10 +543,77 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const [mpPayment, setMpPayment] = useState<MercadoPagoPayment | null>(null);
   const [pollingPayment, setPollingPayment] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<{ id: string; items: { name: string; quantity: number }[]; total: number } | null>(null);
+  const [whatsappCheckoutUrl, setWhatsappCheckoutUrl] = useState("");
+  const paymentLabels: Record<string, string> = {
+    pix: "Pix",
+    dinheiro: "Dinheiro",
+    cartao_credito: "Cartao de Credito",
+    cartao_debito: "Cartao de Debito",
+  };
+  const missingNameOrWhatsapp = !form.name || !form.whatsapp;
+  const missingAddressFields = needsAddress && (!form.cep || !form.street || !form.number || !form.neighborhood || !form.city || !form.state);
+  const missingScheduleFields = requiresSchedule && (!form.appointmentDate || !form.appointmentTime);
+  const missingPixEmail = storeMercadoPagoConnected && form.payment === "pix" && !form.email;
+
+  const validateCoupon = async (code: string) => {
+    const normalizedCode = code.trim().toUpperCase();
+    if (!normalizedCode) {
+      setCouponDiscount(0);
+      setCouponValidationMsg("");
+      return;
+    }
+
+    setValidatingCoupon(true);
+    try {
+      const res = await apiFetch<{ discountAmount: number }>(`/store/${encodeURIComponent(storeSlug)}/validate-coupon`, {
+        method: "POST",
+        body: JSON.stringify({ code: normalizedCode, subtotal: totalPrice }),
+      });
+      setCouponDiscount(res.discountAmount);
+      setCouponValidationMsg(`Cupom aplicado! Desconto de ${formatPrice(res.discountAmount)}`);
+    } catch (e: unknown) {
+      setCouponDiscount(0);
+      setCouponValidationMsg(e instanceof Error ? e.message : "Cupom invalido");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  useEffect(() => {
+    if (supportsDelivery || form.deliveryMethod !== "delivery") return;
+    setForm((current) => ({ ...current, deliveryMethod: supportsPickup ? "pickup" : "delivery" }));
+  }, [form.deliveryMethod, supportsDelivery, supportsPickup]);
+
+  useEffect(() => {
+    if (!form.coupon.trim() || couponDiscount <= 0) return;
+
+    let cancelled = false;
+    const refreshCoupon = async () => {
+      try {
+        const res = await apiFetch<{ discountAmount: number }>(`/store/${encodeURIComponent(storeSlug)}/validate-coupon`, {
+          method: "POST",
+          body: JSON.stringify({ code: form.coupon.trim().toUpperCase(), subtotal: totalPrice }),
+        });
+        if (cancelled) return;
+        setCouponDiscount(res.discountAmount);
+        setCouponValidationMsg(`Cupom aplicado! Desconto de ${formatPrice(res.discountAmount)}`);
+      } catch (e: unknown) {
+        if (cancelled) return;
+        setCouponDiscount(0);
+        setCouponValidationMsg(e instanceof Error ? e.message : "Cupom invalido");
+      }
+    };
+
+    void refreshCoupon();
+    return () => {
+      cancelled = true;
+    };
+  }, [couponDiscount, form.coupon, storeSlug, totalPrice]);
 
   useEffect(() => {
     const cep = form.cep.replace(/\D/g, "");
-    if (form.deliveryMethod !== "delivery" || cep.length !== 8) return;
+    if (!needsAddress || cep.length !== 8) return;
 
     let cancelled = false;
     const handle = window.setTimeout(async () => {
@@ -377,26 +643,32 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [form.cep, form.deliveryMethod]);
+  }, [form.cep, needsAddress]);
 
   // Busca de Frete (Melhor Envio)
   useEffect(() => {
     const cep = form.cep.replace(/\D/g, "");
-    if (form.deliveryMethod !== "delivery" || !isPhysicalShippingStore || cep.length !== 8) {
+    if (!needsShippingQuote || cep.length !== 8 || !shippingQuoteAddressReady) {
       setShippingRates([]);
       setSelectedShipping(null);
+      setShippingError("");
       return;
     }
 
     let cancelled = false;
     const fetchRates = async () => {
       setLoadingShipping(true);
+      setShippingError("");
       try {
         const rates = await apiFetch<any[]>("/shipping/calculate", {
           method: "POST",
           body: JSON.stringify({
             storeSlug,
             cep,
+            street: form.street,
+            number: form.number,
+            city: form.city,
+            state: form.state,
             products: items.map(i => ({
               id: i.product.id,
               name: i.product.name,
@@ -412,9 +684,13 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
         if (cancelled) return;
         setShippingRates(rates || []);
         // Selecionar o primeiro automaticamente se houver
-        if (rates?.length > 0) setSelectedShipping(rates[0]);
+        setSelectedShipping(rates?.length > 0 ? rates[0] : null);
       } catch (err) {
         console.error("Erro frete:", err);
+        if (cancelled) return;
+        setShippingRates([]);
+        setSelectedShipping(null);
+        setShippingError(err instanceof Error ? err.message : "Nao foi possivel calcular o frete agora.");
       } finally {
         if (!cancelled) setLoadingShipping(false);
       }
@@ -422,7 +698,68 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
 
     fetchRates();
     return () => { cancelled = true; };
-  }, [form.cep, form.deliveryMethod, storeSlug, items]);
+  }, [form.cep, form.city, form.number, form.state, form.street, items, needsShippingQuote, shippingQuoteAddressReady, storeSlug]);
+
+  useEffect(() => {
+    if (!requiresSchedule) {
+      setAvailableSlots([]);
+      setAvailabilityError("");
+      setAppointmentDurationMinutes(0);
+      return;
+    }
+
+    if (!form.appointmentDate || items.length === 0) {
+      setAvailableSlots([]);
+      setAvailabilityError("");
+      setAppointmentDurationMinutes(0);
+      setForm((current) => current.appointmentTime ? { ...current, appointmentTime: "" } : current);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchAvailability = async () => {
+      setLoadingAvailability(true);
+      setAvailabilityError("");
+      try {
+        const response = await apiFetch<{
+          duration_minutes: number;
+          slots: AvailabilitySlot[];
+        }>(`/store/${encodeURIComponent(storeSlug)}/availability`, {
+          method: "POST",
+          body: JSON.stringify({
+            date: form.appointmentDate,
+            items: items.map((item) => ({
+              product_id: item.product.id,
+              quantity: item.quantity,
+              selected_options: item.selectedOptions.map((option) => option.name),
+            })),
+          }),
+        });
+
+        if (cancelled) return;
+        setAvailableSlots(response.slots || []);
+        setAppointmentDurationMinutes(Number(response.duration_minutes || 0));
+        setForm((current) => {
+          if (!current.appointmentTime) return current;
+          const stillAvailable = (response.slots || []).some((slot) => slot.start === current.appointmentTime);
+          return stillAvailable ? current : { ...current, appointmentTime: "" };
+        });
+      } catch (e: unknown) {
+        if (cancelled) return;
+        setAvailableSlots([]);
+        setAppointmentDurationMinutes(0);
+        setAvailabilityError(e instanceof Error ? e.message : "Nao foi possivel carregar os horarios");
+        setForm((current) => current.appointmentTime ? { ...current, appointmentTime: "" } : current);
+      } finally {
+        if (!cancelled) setLoadingAvailability(false);
+      }
+    };
+
+    fetchAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.appointmentDate, items, requiresSchedule, storeSlug]);
 
   const sendOrder = () => {
     const pmt = { pix: "Pix", dinheiro: "Dinheiro", cartao_credito: "Cartao de Credito", cartao_debito: "Cartao de Debito" }[form.payment] || form.payment;
@@ -461,9 +798,32 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     if (sending || items.length === 0) return;
     setSending(true);
     setSendError("");
-    const pmt = { pix: "Pix", dinheiro: "Dinheiro", cartao_credito: "Cartao de Credito", cartao_debito: "Cartao de Debito" }[form.payment] || form.payment;
+    setWhatsappCheckoutUrl("");
+    const pmt = paymentLabels[form.payment] || form.payment;
     const paymentProvider = storeMercadoPagoConnected && form.payment === "pix" ? "mercadopago_pix" : "whatsapp";
-    const addressLines = form.deliveryMethod === "delivery"
+    const handoffWindow = paymentProvider === "whatsapp" && typeof window !== "undefined"
+      ? window.open("", "_blank", "noopener,noreferrer")
+      : null;
+    const scheduleLines = requiresSchedule
+      ? [
+          form.appointmentDate ? `*Data desejada:* ${form.appointmentDate}` : "",
+          selectedAppointmentSlot
+            ? `*Horario desejado:* ${selectedAppointmentSlot.label}`
+            : form.appointmentTime
+            ? `*Horario desejado:* ${form.appointmentTime}`
+            : "",
+        ].filter(Boolean)
+      : [];
+    const orderNotes = [
+      requiresSchedule && form.appointmentDate ? `Data desejada: ${form.appointmentDate}` : "",
+      requiresSchedule && selectedAppointmentSlot
+        ? `Horario desejado: ${selectedAppointmentSlot.label}`
+        : requiresSchedule && form.appointmentTime
+        ? `Horario desejado: ${form.appointmentTime}`
+        : "",
+      form.notes,
+    ].filter(Boolean).join(" | ");
+    const addressLines = needsAddress
       ? [
           form.cep ? `*CEP:* ${form.cep}` : "",
           form.street ? `*Endereco:* ${form.street}${form.number ? `, ${form.number}` : ""}` : "",
@@ -471,9 +831,13 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
           form.neighborhood ? `*Bairro:* ${form.neighborhood}` : "",
           form.city || form.state ? `*Cidade/UF:* ${[form.city, form.state].filter(Boolean).join(" / ")}` : "",
           form.reference ? `*Referencia:* ${form.reference}` : "",
-          selectedShipping ? `*Frete:* ${selectedShipping.name} (${formatPrice(currentDeliveryFee)})` : (currentDeliveryFee > 0 ? `*Frete:* ${formatPrice(currentDeliveryFee)}` : ""),
+          selectedShipping
+            ? `*${labels.deliveryFeeLabel}:* ${selectedShipping.name} (${formatPrice(currentDeliveryFee)})`
+            : currentDeliveryFee > 0
+            ? `*${labels.deliveryFeeLabel}:* ${formatPrice(currentDeliveryFee)}`
+            : "",
         ].filter(Boolean)
-      : ["*Modalidade:* Retirada no local"];
+      : [`*Modalidade:* ${labels.pickupOptionLabel}`];
     try {
       const created = await apiFetch<{
         order: { id: string; items: { name: string; storage?: string; price: number; quantity: number; selected_options?: ProductOption[] }[]; total: number; discount?: number };
@@ -499,8 +863,10 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
             payment_method: form.payment,
             payment_provider: paymentProvider,
             delivery_fee: currentDeliveryFee,
-            delivery_method_name: selectedShipping?.name || (deliveryFeeType === "fixed" ? "Entrega Fixa" : "Entrega"),
-            notes: form.notes,
+            delivery_method_name: deliveryMethodName,
+            appointment_date: form.appointmentDate,
+            appointment_time: form.appointmentTime,
+            notes: orderNotes,
             coupon_code: form.coupon,
             items: items.map((item) => ({
               product_id: item.product.id,
@@ -512,34 +878,45 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
       );
 
       const lines = [
-        `*Pedido Mostrara #${created.order.id.slice(0, 8)} - ${storeName}*`,
+        `*${storeConfig.mode === "booking" ? "Solicitacao" : "Pedido"} Mostrara #${created.order.id.slice(0, 8)} - ${storeName}*`,
         "",
         `*Cliente:* ${form.name}`,
         `*WhatsApp:* ${form.whatsapp}`,
         `*Pagamento:* ${pmt}`,
-      ...addressLines,
+        ...scheduleLines,
+        ...addressLines,
         created.order.discount ? `*Desconto:* ${formatPrice(created.order.discount)}` : "",
         "",
         "*Itens:*",
         ...created.order.items.map(i => `- ${i.name}${i.storage ? ` (${i.storage})` : ""}${i.selected_options?.length ? `\n  + ${i.selected_options.map(o => o.name).join(", ")}` : ""} - ${formatPrice(i.price)} x ${i.quantity}`),
         "",
         `*Total: ${formatPrice(created.order.total)}*`,
-        form.notes ? `\n*Obs:* ${form.notes}` : "",
+        orderNotes ? `*Obs:* ${orderNotes}` : "",
         "",
-        "Para confirmar a compra, envie esta mensagem pronta para a loja.",
+        storeConfig.mode === "booking"
+          ? "Para confirmar o agendamento, envie esta mensagem para a loja."
+          : "Para confirmar a compra, envie esta mensagem pronta para a loja.",
       ].filter(Boolean).join("\n");
 
+      const orderSummary = {
+        id: created.order.id,
+        items: created.order.items.map((item) => ({ name: item.name, quantity: item.quantity })),
+        total: created.order.total,
+      };
+      setCreatedOrder(orderSummary);
+
       if (paymentProvider === "whatsapp") {
-        const text = encodeURIComponent(lines);
-        const phone = storeWhatsapp.replace(/\D/g, "");
-        let cleanPhone = phone;
-        if (cleanPhone && !cleanPhone.startsWith("55") && cleanPhone.length <= 11) {
-          cleanPhone = "55" + cleanPhone;
+        const whatsappUrl = buildWhatsAppUrl(storeWhatsapp, lines);
+        setWhatsappCheckoutUrl(whatsappUrl);
+        if (handoffWindow && whatsappUrl) {
+          handoffWindow.location.href = whatsappUrl;
+        } else if (handoffWindow) {
+          handoffWindow.close();
         }
-        window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
+      } else if (handoffWindow) {
+        handoffWindow.close();
       }
 
-      onOrderCreated({ ...created.order, whatsappText: lines } as any);
       trackAnalytics("checkout_completed", {
         store_slug: storeSlug,
         payment_provider: paymentProvider,
@@ -558,13 +935,45 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
 
       audioSuccess?.play().catch(() => {});
       setSent(true);
-      setTimeout(() => { setSent(false); setCheckoutOpen(false); onClose(); }, 3000);
     } catch (e: unknown) {
+      handoffWindow?.close();
       setSendError(e instanceof Error ? e.message : "Nao foi possivel registrar o pedido");
     } finally {
       setSending(false);
     }
   };
+
+  const noCarrierAvailable =
+    shippingQuoteAddressReady &&
+    form.cep.replace(/\D/g, "").length === 8 &&
+    !loadingShipping &&
+    !shippingError &&
+    shippingRates.length === 0;
+  const missingCarrierSelection = shippingQuoteAddressReady && shippingRates.length > 0 && !selectedShipping;
+  const waitingShippingQuote = shippingQuoteAddressReady && form.cep.replace(/\D/g, "").length === 8 && loadingShipping;
+  const hasShippingQuoteError = shippingQuoteAddressReady && Boolean(shippingError);
+  const noAppointmentSlots =
+    requiresSchedule &&
+    Boolean(form.appointmentDate) &&
+    !loadingAvailability &&
+    availableSlots.length === 0;
+  const invalidAppointmentTime =
+    requiresSchedule &&
+    Boolean(form.appointmentTime) &&
+    !availableSlots.some((slot) => slot.start === form.appointmentTime);
+  const canSubmit =
+    !missingNameOrWhatsapp &&
+    !missingAddressFields &&
+    !missingScheduleFields &&
+    !missingPixEmail &&
+    !waitingShippingQuote &&
+    !hasShippingQuoteError &&
+    !noCarrierAvailable &&
+    !missingCarrierSelection &&
+    !noAppointmentSlots &&
+    !invalidAppointmentTime &&
+    !loadingAvailability &&
+    !sending;
 
   useEffect(() => {
     if (!mpPayment?.order_id) return;
@@ -602,9 +1011,14 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
 
   const copyPixCode = async () => {
     if (!mpPayment?.qr_code) return;
-    await navigator.clipboard.writeText(mpPayment.qr_code);
-    setCopiedCode(true);
-    window.setTimeout(() => setCopiedCode(false), 1500);
+    try {
+      await copyTextToClipboard(mpPayment.qr_code);
+      setCopiedCode(true);
+      setSendError("");
+      window.setTimeout(() => setCopiedCode(false), 1500);
+    } catch {
+      setSendError("Nao foi possivel copiar o codigo Pix automaticamente");
+    }
   };
 
   return (
@@ -625,7 +1039,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="w-5 h-5 text-gray-700" />
-                  <h2 className="font-bold text-gray-900">Carrinho</h2>
+                  <h2 className="font-bold text-gray-900">{labels.cartTitle}</h2>
                   {totalItems > 0 && (
                     <span className="bg-red-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                       {totalItems}
@@ -640,7 +1054,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
               {items.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400">
                   <ShoppingCart className="w-12 h-12 text-gray-200" />
-                  <p className="text-sm font-medium">Carrinho vazio</p>
+                  <p className="text-sm font-medium">{labels.emptyCartTitle}</p>
                 </div>
               ) : (
                 <>
@@ -682,9 +1096,9 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                         <p className="text-sm font-medium text-gray-500">Subtotal</p>
                         <p className="text-sm font-semibold text-gray-900">{formatPrice(totalPrice)}</p>
                       </div>
-                      {form.deliveryMethod === "delivery" && currentDeliveryFee > 0 && (
+                      {needsAddress && currentDeliveryFee > 0 && (
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-gray-500">Taxa de Entrega</p>
+                          <p className="text-sm font-medium text-gray-500">{labels.deliveryFeeLabel}</p>
                           <p className="text-sm font-semibold text-gray-900">{formatPrice(currentDeliveryFee)}</p>
                         </div>
                       )}
@@ -704,7 +1118,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                       className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      Finalizar Pedido
+                      {labels.checkoutButton}
                     </button>
                   </div>
                 </>
@@ -715,25 +1129,69 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
       </AnimatePresence>
 
       {/* Checkout dialog */}
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+      <Dialog
+        open={checkoutOpen}
+        onOpenChange={(open) => {
+          setCheckoutOpen(open);
+          if (!open) {
+            setSent(false);
+            setSendError("");
+            setWhatsappCheckoutUrl("");
+            setCreatedOrder(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-sm p-0 border-0 shadow-2xl">
           <div className="bg-white rounded-2xl overflow-hidden flex flex-col max-h-[90dvh]">
             {sent ? (
-              <div className="py-16 text-center px-6 shrink-0">
-                <DialogTitle className="sr-only">Pedido enviado</DialogTitle>
-                <DialogDescription className="sr-only">Seu pedido foi enviado com sucesso</DialogDescription>
+              <div className="py-10 text-center px-6 shrink-0 space-y-4">
+                <DialogTitle className="sr-only">{labels.orderReceivedTitle}</DialogTitle>
+                <DialogDescription className="sr-only">{labels.orderReceivedDescription}</DialogDescription>
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <MessageCircle className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Pedido recebido!</h3>
-                <p className="text-gray-500 text-sm">A loja recebeu seu pedido e entrará em contato em breve.</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{labels.orderReceivedTitle}</h3>
+                <p className="text-gray-500 text-sm">{labels.orderReceivedDescription}</p>
+                <div className="grid gap-3">
+                  {whatsappCheckoutUrl && (
+                    <a
+                      href={whatsappCheckoutUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-bold text-white hover:bg-[#20bd5a]"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Abrir WhatsApp
+                    </a>
+                  )}
+                  {createdOrder && (
+                    <button
+                      type="button"
+                      onClick={() => onOrderCreated(createdOrder)}
+                      className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-bold text-white hover:bg-gray-800"
+                    >
+                      Acompanhar pedido
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSent(false);
+                      setCheckoutOpen(false);
+                      onClose();
+                    }}
+                    className="w-full rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                  >
+                    Voltar para a loja
+                  </button>
+                </div>
               </div>
             ) : (
               <>
                 <div className="px-6 py-4 border-b border-gray-100 shrink-0">
-                  <DialogTitle className="font-bold text-gray-900">Finalizar pedido</DialogTitle>
+                  <DialogTitle className="font-bold text-gray-900">{labels.checkoutTitle}</DialogTitle>
                   <DialogDescription className="text-sm text-gray-500 mt-0.5">
-                    Preencha os dados abaixo para finalizar o seu pedido.
+                    {labels.checkoutDescription}
                   </DialogDescription>
                 </div>
                 <div className="p-6 space-y-4 flex-1 overflow-y-auto">
@@ -766,20 +1224,78 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Modalidade</label>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">{labels.deliveryMethodLabel}</label>
                     <select
                       value={form.deliveryMethod}
                       onChange={e => setForm(f => ({ ...f, deliveryMethod: e.target.value }))}
                       className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10 transition-all"
                     >
-                      <option value="delivery">Entrega</option>
-                      <option value="pickup">Retirada no local</option>
+                      {supportsDelivery && <option value="delivery">{labels.deliveryOptionLabel}</option>}
+                      {supportsPickup && <option value="pickup">{labels.pickupOptionLabel}</option>}
                     </select>
                   </div>
-                  {form.deliveryMethod === "delivery" ? (
+                  {requiresSchedule && (
                     <>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800">
-                        ViaCEP preenche o endereco automaticamente quando o CEP for valido.
+                        {labels.appointmentHint}
+                      </div>
+                      {appointmentDurationMinutes > 0 && (
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                          Duracao prevista: <strong>{formatDurationMinutes(appointmentDurationMinutes)}</strong>
+                        </div>
+                      )}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">{labels.appointmentDateLabel}</label>
+                          <input
+                            type="date"
+                            min={today}
+                            value={form.appointmentDate}
+                            onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))}
+                            className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">{labels.appointmentTimeLabel}</label>
+                          <select
+                            value={form.appointmentTime}
+                            disabled={!form.appointmentDate || loadingAvailability || availableSlots.length === 0}
+                            onChange={e => setForm(f => ({ ...f, appointmentTime: e.target.value }))}
+                            className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all disabled:opacity-50"
+                          >
+                            <option value="">
+                              {loadingAvailability
+                                ? "Carregando horarios..."
+                                : !form.appointmentDate
+                                ? "Escolha a data"
+                                : availableSlots.length > 0
+                                ? "Selecione um horario"
+                                : "Sem horarios disponiveis"}
+                            </option>
+                            {availableSlots.map((slot) => (
+                              <option key={slot.start} value={slot.start}>
+                                {slot.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      {availabilityError && (
+                        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
+                          {availabilityError}
+                        </p>
+                      )}
+                      {!loadingAvailability && form.appointmentDate && availableSlots.length === 0 && !availabilityError && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-medium">
+                          Nao ha horarios livres nessa data para a duracao selecionada.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {needsAddress ? (
+                    <>
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800">
+                        {labels.deliveryHint}
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
@@ -847,12 +1363,16 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                       </div>
 
                       {/* Opcoes de Frete (Melhor Envio) */}
-                      {form.deliveryMethod === "delivery" && form.cep.replace(/\D/g, "").length === 8 && (
+                      {needsShippingQuote && form.cep.replace(/\D/g, "").length === 8 && (
                         <div className="space-y-1.5">
                           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
                             Opcoes de Entrega
                           </label>
-                          {loadingShipping ? (
+                          {!shippingQuoteAddressReady ? (
+                            <p className="text-xs text-gray-500 font-medium">
+                              Preencha rua, numero, cidade e estado para calcular o frete.
+                            </p>
+                          ) : loadingShipping ? (
                             <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
                               <Loader2 className="w-4 h-4 animate-spin" />
                               Calculando frete...
@@ -886,6 +1406,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                                 </button>
                               ))}
                             </div>
+                          ) : shippingError ? (
+                            <p className="text-xs text-red-500 font-medium">{shippingError}</p>
                           ) : (
                             <p className="text-xs text-red-500 font-medium">Nenhuma transportadora disponivel para este CEP.</p>
                           )}
@@ -894,7 +1416,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </>
                   ) : (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                      Cliente escolheu retirada no local.
+                      {labels.pickupSummary}
                     </div>
                   )}
                   {storeMercadoPagoConnected && form.payment === "pix" ? (
@@ -931,10 +1453,10 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </div>
                   ) : null}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Observacoes</label>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">{labels.notesLabel}</label>
                     <textarea
                       value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                      placeholder="Alguma observacao..."
+                      placeholder={labels.notesPlaceholder}
                       rows={2}
                       className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all resize-none"
                     />
@@ -944,13 +1466,11 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     <div className="flex gap-2">
                       <input
                         value={form.coupon}
-                        onChange={e => {
-                          setForm(f => ({ ...f, coupon: e.target.value.toUpperCase() }));
-                          if (couponDiscount > 0) {
-                            setCouponDiscount(0);
-                            setCouponValidationMsg("");
-                          }
-                        }}
+	                        onChange={e => {
+	                          setForm(f => ({ ...f, coupon: e.target.value.toUpperCase() }));
+	                          setCouponDiscount(0);
+	                          setCouponValidationMsg("");
+	                        }}
                         placeholder="Ex: PROMO10"
                         className="flex-1 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:bg-white focus:ring-2 focus:ring-red-500/10 transition-all"
                       />
@@ -993,19 +1513,49 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </p>
                   )}
                   {/* Inline validation hints */}
-                  {(!form.name || !form.whatsapp) && (
+                  {missingNameOrWhatsapp && (
                     <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-medium">
                       ⚠️ Preencha seu <strong>nome</strong> e <strong>WhatsApp</strong> para continuar.
                     </p>
                   )}
-                  {form.deliveryMethod === "delivery" && form.name && form.whatsapp && (!form.cep || !form.street || !form.number) && (
+                  {needsAddress && form.name && form.whatsapp && missingAddressFields && (
                     <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-medium">
                       ⚠️ Preencha o <strong>CEP</strong>, <strong>rua</strong> e <strong>número</strong> para entrega.
                     </p>
                   )}
-                  {storeMercadoPagoConnected && form.payment === "pix" && !form.email && form.name && form.whatsapp && (
+                  {storeMercadoPagoConnected && form.payment === "pix" && missingPixEmail && form.name && form.whatsapp && (
                     <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-medium">
                       ⚠️ Informe seu <strong>e-mail</strong> para gerar o Pix.
+                    </p>
+                  )}
+                  {requiresSchedule && form.name && form.whatsapp && missingScheduleFields && (
+                    <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-medium">
+                      Escolha a <strong>data</strong> e o <strong>horario</strong> desejados.
+                    </p>
+                  )}
+                  {requiresSchedule && loadingAvailability && (
+                    <p className="mb-3 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 font-medium">
+                      Carregando horarios disponiveis...
+                    </p>
+                  )}
+                  {noAppointmentSlots && (
+                    <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
+                      Nao ha horarios disponiveis para essa data.
+                    </p>
+                  )}
+                  {invalidAppointmentTime && (
+                    <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
+                      O horario escolhido nao esta mais disponivel.
+                    </p>
+                  )}
+                  {noCarrierAvailable && (
+                    <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
+                      Nenhuma transportadora atendeu esse CEP.
+                    </p>
+                  )}
+                  {hasShippingQuoteError && (
+                    <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
+                      {shippingError}
                     </p>
                   )}
                   <div className="flex gap-3">
@@ -1014,11 +1564,11 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </button>
                     <button
                       onClick={sendOrderTracked}
-                      disabled={!form.name || !form.whatsapp || (form.deliveryMethod === "delivery" && (!form.cep || !form.street || !form.number || !form.neighborhood || !form.city || !form.state)) || (storeMercadoPagoConnected && form.payment === "pix" && !form.email) || sending}
+                      disabled={!canSubmit}
                       className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                       {storeMercadoPagoConnected && form.payment === "pix" ? <QrCode className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-                      {sending ? "Abrindo..." : storeMercadoPagoConnected && form.payment === "pix" ? "Gerar Pix" : "Ir ao WhatsApp"}
+                      {sending ? "Abrindo..." : storeMercadoPagoConnected && form.payment === "pix" ? "Gerar Pix" : labels.whatsappButton}
                     </button>
                   </div>
                 </div>
@@ -1028,7 +1578,16 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!mpPayment} onOpenChange={(v) => { if (!v) setMpPayment(null); }}>
+      <Dialog
+        open={!!mpPayment}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMpPayment(null);
+            setCreatedOrder(null);
+            setCopiedCode(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-md p-0 border-0 shadow-2xl overflow-hidden">
           <div className="bg-white flex flex-col max-h-[90dvh]">
             {mpPayment?.status === "approved" ? (
@@ -1044,10 +1603,14 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMpPayment(null)}
+                  onClick={() => onOrderCreated(createdOrder || {
+                    id: mpPayment.order_id || "",
+                    items: [],
+                    total: 0,
+                  })}
                   className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors"
                 >
-                  Voltar para a loja
+                  Acompanhar pedido
                 </button>
               </div>
             ) : (
@@ -1124,6 +1687,16 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                     </a>
                   )}
 
+                  {createdOrder && (
+                    <button
+                      type="button"
+                      onClick={() => onOrderCreated(createdOrder)}
+                      className="w-full rounded-xl bg-gray-100 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                    >
+                      Acompanhar pedido
+                    </button>
+                  )}
+
                   <p className="text-xs text-gray-500 leading-relaxed">
                     Depois de pagar, o sistema recebe a confirmacao automaticamente pelo webhook do Mercado Pago.
                   </p>
@@ -1155,8 +1728,8 @@ function ProductDetailDialog({
   const [photoIdx, setPhotoIdx] = useState(0);
   const [selectedOptionNames, setSelectedOptionNames] = useState<string[]>([]);
   const { items } = useCart();
-  const inCart = product ? items.some(i => i.product.id === product.id) : false;
   const storeConfig = getStoreTypeConfig(storeType);
+  const { labels } = getStoreExperience(storeType);
 
   useEffect(() => {
     setPhotoIdx(0);
@@ -1167,6 +1740,8 @@ function ProductDetailDialog({
   const photos = product.photos || [];
   const options = product.options ?? [];
   const selectedOptions = options.filter((option) => selectedOptionNames.includes(option.name));
+  const inCart = Boolean(findCartMatch(items, product.id, selectedOptions));
+  const available = isProductAvailable(product);
   const detailPrice = product.price + selectedOptions.reduce((sum, option) => sum + Number(option.price || 0), 0);
 
   return (
@@ -1223,7 +1798,7 @@ function ProductDetailDialog({
                 <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <ShieldCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-400">Condicao</p>
+                    <p className="text-xs text-gray-400">{storeConfig.conditionLabel}</p>
                     <p className="text-sm font-semibold text-gray-900">{product.condition}</p>
                   </div>
                 </div>
@@ -1255,7 +1830,7 @@ function ProductDetailDialog({
             {options.length > 0 && (
               <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                  Adicionais e complementos
+                  {labels.optionsTitle}
                 </p>
                 <div className="space-y-2">
                   {options.map((option) => {
@@ -1288,20 +1863,20 @@ function ProductDetailDialog({
           <div className="p-5 pt-0 shrink-0 bg-white">
             <button
               onClick={() => {
-                if (!isOpen) return;
+                if (!isOpen || !available) return;
                 onAddToCart(product, selectedOptions);
                 onClose();
               }}
               className={cn(
                 "w-full font-bold py-3.5 rounded-xl transition-colors mt-2",
-                !isOpen 
+                !isOpen || !available
                   ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                   : inCart
                   ? "bg-red-600 text-white hover:bg-red-700"
                   : "bg-gray-900 text-white hover:bg-gray-800"
               )}
             >
-              {!isOpen ? "Loja Fechada" : inCart ? "✓ No carrinho" : "Adicionar ao carrinho"}
+              {!isOpen ? "Loja Fechada" : inCart ? `✓ ${labels.inCartAction}` : labels.detailAction}
             </button>
           </div>
         </div>
@@ -1325,6 +1900,8 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
   const cartPulseRef = useRef(0);
   const { addItem, totalItems } = useCart();
   const [, navigate] = useLocation();
+  const visibleProducts = products.filter(isProductAvailable);
+  const { labels } = getStoreExperience(store?.store_type ?? store?.canonical_niche);
 
   useEffect(() => {
     apiFetch<{ store: StoreData; products: Product[] }>(`/store/${encodeURIComponent(storeSlug)}`)
@@ -1358,6 +1935,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
   }, [totalItems]);
 
   const rememberOrder = (order: { id: string; items: { name: string; quantity: number }[]; total: number }) => {
+    localStorage.setItem(`mostrara:last-order:${storeSlug}`, JSON.stringify({ ...order, shown: false }));
     navigate(`/loja/${storeSlug}/pedido/${order.id}`);
   };
 
@@ -1368,8 +1946,8 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
     setLastOrder(null);
   };
 
-  const categories = ["Todos", ...Array.from(new Set(products.map(p => String(p.category ?? "")).filter(Boolean)))];
-  const filtered = products.filter((p) => {
+  const categories = ["Todos", ...Array.from(new Set(visibleProducts.map(p => String(p.category ?? "")).filter(Boolean)))];
+  const filtered = visibleProducts.filter((p) => {
     const q = search.trim().toLowerCase();
     const name = String(p.name ?? "").toLowerCase();
     const category = String(p.category ?? "").toLowerCase();
@@ -1456,7 +2034,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar produtos..."
+              placeholder={labels.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10 transition-all"
@@ -1486,10 +2064,10 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
         <main className="px-4 sm:px-0 sm:max-w-5xl sm:mx-auto py-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">
-              {categoryFilter === "Todos" ? "Todos os produtos" : categoryFilter}
+              {categoryFilter === "Todos" ? labels.allItems : categoryFilter}
             </h2>
             <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-              {filtered.length} {filtered.length === 1 ? "item" : "itens"}
+              {filtered.length} {filtered.length === 1 ? labels.itemCountSingular : labels.itemCountPlural}
             </span>
           </div>
 
@@ -1510,8 +2088,10 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                   loop
                 />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">{search ? "Nenhum resultado" : "Sem produtos"}</h3>
-              <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">{search ? "Tente buscar por outros termos." : "Esta categoria ainda não tem produtos."}</p>
+              <h3 className="text-lg font-bold text-gray-900">{search ? "Nenhum resultado" : labels.emptyCatalogTitle}</h3>
+              <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">
+                {search ? "Tente buscar por outros termos." : labels.emptyCatalogDescription}
+              </p>
               {search && (
                 <button onClick={() => setSearch("")} className="mt-4 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors">Limpar busca</button>
               )}
@@ -1527,6 +2107,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                 key={p.id}
                 product={p}
                 isOpen={store?.is_open !== false}
+                storeType={store?.store_type ?? store?.canonical_niche}
                 onClick={() => setSelectedProduct(p)}
               />
             ))}
@@ -1581,7 +2162,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                     <MessageCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
                     <div>
                       <p className="font-semibold text-gray-900">Atendimento</p>
-                      <p className="text-gray-500 mt-0.5">Pedidos via WhatsApp com Pix direto na plataforma.</p>
+                      <p className="text-gray-500 mt-0.5">{labels.infoDescription}</p>
                     </div>
                   </div>
                 </div>
@@ -1597,7 +2178,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
         open={!!selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={(p, options) => addItem(p, options)}
-        storeType={store?.store_type}
+        storeType={store?.store_type ?? store?.canonical_niche}
         isOpen={store?.is_open !== false}
       />
 
@@ -1629,7 +2210,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                   </span>
                 )}
               </div>
-              <span className="text-sm">{store?.is_open === false ? "Loja Fechada" : "Ver sacola"}</span>
+              <span className="text-sm">{store?.is_open === false ? "Loja Fechada" : labels.floatingCartLabel}</span>
             </div>
           </motion.button>
         )}
@@ -1647,7 +2228,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
           isOpen={store.is_open !== false}
           deliveryFeeType={store.delivery_fee_type || "none"}
           deliveryFeeAmount={store.delivery_fee_amount || 0}
-          storeType={store.store_type}
+          storeType={store.store_type ?? store.canonical_niche}
           onOrderCreated={rememberOrder}
         />
       )}
@@ -1660,9 +2241,9 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                 autoplay
               />
             </div>
-            <DialogTitle className="text-xl font-black text-gray-900">Pedido registrado</DialogTitle>
+            <DialogTitle className="text-xl font-black text-gray-900">{labels.orderRegisteredTitle}</DialogTitle>
             <DialogDescription className="text-sm text-gray-500 mt-2">
-              Seu pedido foi separado no catalogo. Para confirmar a compra, envie a mensagem pronta no WhatsApp da loja.
+              {labels.orderRegisteredDescription}
             </DialogDescription>
             {lastOrder && (
               <div className="mt-4 rounded-xl bg-gray-50 border border-gray-100 p-3 text-left">
@@ -1677,7 +2258,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
               onClick={closeLastOrder}
               className="mt-5 w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors"
             >
-              Voltar ao catalogo
+              {labels.backToCatalog}
             </button>
           </div>
         </DialogContent>

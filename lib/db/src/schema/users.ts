@@ -10,6 +10,8 @@ export const usersTable = pgTable("users", {
   whatsapp: text("whatsapp").notNull(),
   store_slug: text("store_slug").unique().notNull(),
   store_type: text("store_type").default("celulares").notNull(),
+  store_mode: text("store_mode").default("retail").notNull(),
+  canonical_niche: text("canonical_niche"),
   description: text("description").default(""),
   city: text("city").default("Rio de Janeiro"),
   state: text("state").default("RJ"),

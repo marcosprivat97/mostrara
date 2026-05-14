@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_STORE_TYPES } from "./store-taxonomy.js";
 
 const optionalTrimmed = z
   .string()
@@ -15,18 +16,7 @@ const money = z.coerce
 
 const phone = z.string().trim().min(8).max(32);
 const storeType = z
-  .enum([
-    "celulares",
-    "acai",
-    "hamburgueria",
-    "pizzaria",
-    "pastelaria",
-    "salgadinhos",
-    "marmitex",
-    "manicure",
-    "salao",
-    "doces",
-  ])
+  .enum(SUPPORTED_STORE_TYPES)
   .optional()
   .default("celulares");
 
@@ -170,8 +160,15 @@ export const publicOrderSchema = z.object({
   customer_document: z.string().trim().max(20).optional().default(""),
   delivery_fee: z.coerce.number().finite().min(0).max(1000).optional().default(0),
   delivery_method_name: z.string().trim().max(100).optional().default(""),
+  appointment_date: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).optional().default(""),
+  appointment_time: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional().default(""),
   notes: optionalTrimmed,
   coupon_code: z.string().trim().max(40).optional().default(""),
+  items: z.array(orderItemSchema).min(1).max(30),
+});
+
+export const publicAvailabilitySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   items: z.array(orderItemSchema).min(1).max(30),
 });
 

@@ -24,11 +24,8 @@ import {
   Zap,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import AuthModal from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-
-type AuthTab = "login" | "register";
 
 const NAV_ITEMS = [
   { href: "#produto", label: "Produto" },
@@ -186,8 +183,6 @@ export function Landing() {
   const [, navigate] = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authTab, setAuthTab] = useState<AuthTab>("login");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -209,18 +204,15 @@ export function Landing() {
     [],
   );
 
-  const openAuth = (tab: AuthTab) => {
-    if (user) {
-      navigate("/dashboard");
-      return;
-    }
-    setAuthTab(tab);
-    setAuthOpen(true);
+  const primaryAction = () => {
     setMobileMenuOpen(false);
+    navigate("/register");
   };
 
-  const primaryAction = () => openAuth("register");
-  const secondaryAction = () => openAuth("login");
+  const secondaryAction = () => {
+    setMobileMenuOpen(false);
+    navigate("/login");
+  };
 
   if (isLoading) {
     return (
@@ -235,12 +227,6 @@ export function Landing() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-950">
-      <AuthModal
-        open={authOpen}
-        onClose={() => setAuthOpen(false)}
-        defaultTab={authTab}
-      />
-
       <header
         className={[
           "fixed inset-x-0 top-0 z-50 border-b transition-all duration-500",

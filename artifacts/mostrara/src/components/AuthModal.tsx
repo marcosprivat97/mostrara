@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LogIn, ShieldCheck, X } from "lucide-react";
+import { buildApiUrl } from "@/lib/api";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { STORE_TYPE_OPTIONS } from "@/lib/store-types";
 
@@ -78,12 +80,12 @@ const Field = forwardRef<
 
 Field.displayName = "Field";
 
-function GoogleButton() {
+export function GoogleButton() {
   return (
     <button
       type="button"
       onClick={() => {
-        window.location.href = "/api/auth/google/start";
+        window.location.href = buildApiUrl("/auth/google/start");
       }}
       className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold py-3 rounded-xl transition-all shadow-sm"
     >
@@ -93,7 +95,7 @@ function GoogleButton() {
   );
 }
 
-function LoginPanel({
+export function LoginPanel({
   onSwitch,
   onRecover,
   onClose,
@@ -169,6 +171,33 @@ function LoginPanel({
           {errors.root.message}
         </p>
       )}
+      {debugUrl && (
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Link de teste</p>
+          <a
+            href={debugUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block break-all text-sm font-medium text-red-600 hover:underline"
+          >
+            {debugUrl}
+          </a>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await copyTextToClipboard(debugUrl);
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+            className="text-xs font-semibold text-gray-700 hover:text-gray-900"
+          >
+            {copied ? "Link copiado" : "Copiar link"}
+          </button>
+        </div>
+      )}
       <button
         type="submit"
         disabled={isSubmitting}
@@ -179,7 +208,7 @@ function LoginPanel({
             <Loader2 className="w-4 h-4 animate-spin" /> Entrando...
           </>
         ) : (
-          "Entrar (Versão Render)"
+          "Entrar"
         )}
       </button>
       <div className="flex items-center justify-between gap-3 text-sm">
@@ -202,14 +231,14 @@ function LoginPanel({
   );
 }
 
-function RegisterPanel({ onSwitch, onClose }: { onSwitch: () => void; onClose: () => void }) {
+export function RegisterPanel({ onSwitch, onClose }: { onSwitch: () => void; onClose: () => void }) {
   const { register: registerUser } = useAuth();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
-  } = useForm<RegisterForm>({ defaultValues: { city: "Rio de Janeiro", store_type: "celulares" } });
+  } = useForm<RegisterForm>({ defaultValues: { city: "Rio de Janeiro", store_type: "" } });
 
   const onSubmit = async (data: RegisterForm) => {
     try {
@@ -265,12 +294,16 @@ function RegisterPanel({ onSwitch, onClose }: { onSwitch: () => void; onClose: (
           className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
           {...register("store_type", { required: "Obrigatorio" })}
         >
+          <option value="">Selecione o nicho da loja</option>
           {STORE_TYPE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
+        {errors.store_type?.message && (
+          <p className="text-xs text-red-500 font-medium">{errors.store_type.message}</p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field
@@ -325,7 +358,7 @@ function RegisterPanel({ onSwitch, onClose }: { onSwitch: () => void; onClose: (
   );
 }
 
-function RecoverPanel({ onBack }: { onBack: () => void }) {
+export function RecoverPanel({ onBack }: { onBack: () => void }) {
   const { requestPasswordReset } = useAuth();
   const {
     register,
@@ -335,11 +368,15 @@ function RecoverPanel({ onBack }: { onBack: () => void }) {
     reset,
   } = useForm<RecoverForm>();
   const [sent, setSent] = useState<string | null>(null);
+  const [debugUrl, setDebugUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const onSubmit = async (data: RecoverForm) => {
     try {
-      const debugUrl = await requestPasswordReset(data.email);
-      setSent(debugUrl ?? "sent");
+      const resetUrl = await requestPasswordReset(data.email);
+      setSent(resetUrl ?? "sent");
+      setDebugUrl(resetUrl ?? null);
+      setCopied(false);
       reset();
     } catch (e: unknown) {
       setError("root", { message: e instanceof Error ? e.message : "Erro ao enviar recuperação" });

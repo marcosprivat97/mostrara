@@ -10,7 +10,7 @@ export default function GoogleAuthCallback() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (!token) {
-      navigate("/?auth=google-error");
+      navigate("/login?auth=google-error");
       return;
     }
 
@@ -21,7 +21,7 @@ export default function GoogleAuthCallback() {
       })
       .catch(() => {
         clearAuthToken();
-        navigate("/?auth=google-error");
+        navigate("/login?auth=google-error");
       });
   }, [navigate]);
 

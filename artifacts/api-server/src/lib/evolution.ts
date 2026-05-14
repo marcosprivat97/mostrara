@@ -9,6 +9,14 @@ const API_KEY = env.evolution.apiKey;
 const processingInstances = new Map<string, { startTime: number }>();
 const MAX_PROCESSING_TIME = 25_000; // 25 seconds safety limit
 
+type EvolutionEnsureResult = {
+  status: "connected" | "qrcode" | "processing" | "error";
+  qr?: string | null;
+  pairingCode?: string | null;
+  raw?: unknown;
+  message?: string;
+};
+
 /**
  * Fetch wrapper with timeout for Evolution API.
  * The connect endpoint in particular can hang forever if the instance is stuck.
@@ -161,7 +169,7 @@ export const evolutionService = {
         5_000,
       );
     } catch (error) {
-      logger.error("Evolution API: Failed to get connection state", error);
+      logger.error({ error }, "Evolution API: Failed to get connection state");
       throw error;
     }
   },
@@ -232,7 +240,7 @@ export const evolutionService = {
         7_000,
       );
     } catch (error) {
-      logger.error("Evolution API: Failed to connect instance", error);
+      logger.error({ error }, "Evolution API: Failed to connect instance");
       throw error;
     }
   },
@@ -248,7 +256,7 @@ export const evolutionService = {
         10_000,
       );
     } catch (error) {
-      logger.error("Evolution API: Failed to logout instance", error);
+      logger.error({ error }, "Evolution API: Failed to logout instance");
       throw error;
     }
   },
@@ -259,7 +267,7 @@ export const evolutionService = {
    */
   async ensureInstanceAndGetQr(
     instanceName: string,
-  ): Promise<{ status: "connected" | "qrcode" | "processing" | "error"; qr?: string | null; pairingCode?: string | null; raw?: any }> {
+  ): Promise<EvolutionEnsureResult> {
     // Check if instance is already being processed by another request
     const processing = processingInstances.get(instanceName);
     if (processing) {
@@ -292,7 +300,7 @@ export const evolutionService = {
   /** @internal */
   async _ensureInstanceAndGetQrInternal(
     instanceName: string,
-  ): Promise<{ status: "connected" | "qrcode" | "processing" | "error"; qr?: string | null; pairingCode?: string | null; raw?: any }> {
+  ): Promise<EvolutionEnsureResult> {
     // Step 1: Check if instance exists and its current state
     let state: string | undefined;
     let exists = false;
@@ -374,7 +382,10 @@ export const evolutionService = {
         12_000,
       );
 
-      logger.info(`Evolution API: Connect response for ${instanceName}:`, JSON.stringify(connectRes).slice(0, 300));
+      logger.info(
+        { responsePreview: JSON.stringify(connectRes).slice(0, 300) },
+        `Evolution API: Connect response for ${instanceName}:`,
+      );
 
       const qr = extractQrCode(connectRes);
       const pairingCode = extractPairingCode(connectRes);
@@ -445,7 +456,7 @@ export const evolutionService = {
         15_000,
       );
     } catch (error) {
-      logger.error("Evolution API: Failed to send text message", error);
+      logger.error({ error }, "Evolution API: Failed to send text message");
       // We don't throw here to avoid failing the order creation if WhatsApp fails
       return null;
     }

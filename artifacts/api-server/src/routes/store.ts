@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db, usersTable, productsTable, ordersTable, couponsTable } from "@workspace/db";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
-import { parseBody, publicOrderSchema, validationError } from "../lib/validation.js";
+import { eq, and, desc, inArray, or, sql } from "drizzle-orm";
+import { parseBody, publicAvailabilitySchema, publicOrderSchema, validationError } from "../lib/validation.js";
 import {
   createMercadoPagoPixPayment,
   decryptMercadoPagoToken,
@@ -13,14 +13,24 @@ import { isPremium } from "../lib/plan.js";
 import { env } from "../lib/env.js";
 import { sendMerchantOrderEmail } from "../lib/email.js";
 import { logSnagEvent } from "../lib/logsnag.js";
+import { isBookingStoreType } from "../lib/store-taxonomy.js";
 import { evolutionService } from "../lib/evolution.js";
-import { formatProduct } from "../lib/product-data.js";
+import { formatProduct, parseOptions } from "../lib/product-data.js";
+import {
+  buildAvailableSlots,
+  getSaoPauloNowParts,
+  isSlotAvailable,
+  parseDurationMinutes,
+  parseServiceHours,
+  type OccupiedInterval,
+} from "../lib/scheduling.js";
 
 const router = Router();
 const APP_URL = env.core.appUrl;
 
 function buildAddressLines(input: {
   delivery_method?: string;
+  delivery_method_name?: string;
   cep?: string;
   street?: string;
   number?: string;
@@ -31,7 +41,7 @@ function buildAddressLines(input: {
   reference?: string;
 }) {
   if ((input.delivery_method || "delivery") !== "delivery") {
-    return ["Retirada no local"];
+    return [input.delivery_method_name || "Retirada no local"];
   }
 
   return [
@@ -42,6 +52,51 @@ function buildAddressLines(input: {
     input.city || input.state ? `Cidade/UF: ${[input.city, input.state].filter(Boolean).join(" / ")}` : "",
     input.reference ? `Referencia: ${input.reference}` : "",
   ].filter(Boolean);
+}
+
+function sumAppointmentDurationMinutes(items: Array<{ storage?: string; quantity: number }>) {
+  const duration = items.reduce(
+    (sum, item) => sum + parseDurationMinutes(item.storage) * Math.max(1, Number(item.quantity) || 1),
+    0,
+  );
+  return duration > 0 ? duration : 60;
+}
+
+async function loadOccupiedIntervals(userId: string, appointmentDate: string) {
+  const appointments = await db
+    .select({
+      appointment_time: ordersTable.appointment_time,
+      appointment_end_time: ordersTable.appointment_end_time,
+      appointment_duration_minutes: ordersTable.appointment_duration_minutes,
+    })
+    .from(ordersTable)
+    .where(and(
+      eq(ordersTable.user_id, userId),
+      eq(ordersTable.appointment_date, appointmentDate),
+      inArray(ordersTable.status, ["pendente", "preparando", "saiu_entrega", "confirmado"]),
+    ));
+
+  return appointments
+    .map((appointment) => {
+      const start = String(appointment.appointment_time || "");
+      if (!/^\d{2}:\d{2}$/.test(start)) return null;
+
+      const end = String(appointment.appointment_end_time || "");
+      if (/^\d{2}:\d{2}$/.test(end)) {
+        return { start, end } satisfies OccupiedInterval;
+      }
+
+      const duration = Number(appointment.appointment_duration_minutes || 0);
+      if (duration > 0) {
+        const [hours, minutes] = start.split(":").map(Number);
+        const totalMinutes = hours * 60 + minutes + duration;
+        const computedEnd = `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+        return { start, end: computedEnd } satisfies OccupiedInterval;
+      }
+
+      return null;
+    })
+    .filter((interval): interval is OccupiedInterval => Boolean(interval));
 }
 
 async function resolveMercadoPagoAccessToken(userId: string) {
@@ -102,7 +157,14 @@ router.get("/:storeSlug", async (req, res) => {
     const products = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.user_id, user.id), eq(productsTable.status, "disponivel")))
+      .where(and(
+        eq(productsTable.user_id, user.id),
+        eq(productsTable.status, "disponivel"),
+        or(
+          eq(productsTable.unlimited_stock, true),
+          sql`coalesce(${productsTable.stock}, 0) > 0`,
+        ),
+      ))
       .orderBy(desc(productsTable.created_at));
 
     res.json({
@@ -125,10 +187,12 @@ router.get("/:storeSlug", async (req, res) => {
         theme_secondary: user.theme_secondary,
         theme_accent: user.theme_accent,
         store_type: user.store_type,
+        store_mode: user.store_mode,
+        canonical_niche: user.canonical_niche,
         is_open: user.is_open,
         store_hours: user.store_hours,
         delivery_fee_type: user.delivery_fee_type,
-        delivery_fee_amount: user.delivery_fee_amount,
+        delivery_fee_amount: Number(user.delivery_fee_amount || 0),
         verified_badge: Boolean(user.verified_badge && isPremium(user)),
         mercado_pago_connected: Boolean(user.mp_connected_at && user.mp_user_id && isPremium(user)),
         mercado_pago_connected_at: user.mp_connected_at,
@@ -196,6 +260,86 @@ router.post("/:storeSlug/validate-coupon", async (req, res) => {
   }
 });
 
+router.post("/:storeSlug/availability", async (req, res) => {
+  try {
+    const { storeSlug } = req.params;
+    const body = parseBody(publicAvailabilitySchema, req.body);
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.store_slug, storeSlug), eq(usersTable.active, true)));
+
+    if (!user) {
+      res.status(404).json({ error: "Loja nao encontrada" });
+      return;
+    }
+
+    if (!isBookingStoreType(user.store_type)) {
+      res.status(400).json({ error: "Essa loja nao trabalha com agenda" });
+      return;
+    }
+
+    const today = getSaoPauloNowParts().date;
+    if (body.date < today) {
+      res.status(400).json({ error: "Nao e possivel agendar em uma data passada" });
+      return;
+    }
+
+    const requestedIds = [...new Set(body.items.map((item) => item.product_id))];
+    const products = await db
+      .select({
+        id: productsTable.id,
+        storage: productsTable.storage,
+      })
+      .from(productsTable)
+      .where(and(
+        eq(productsTable.user_id, user.id),
+        eq(productsTable.status, "disponivel"),
+        inArray(productsTable.id, requestedIds),
+      ));
+
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const requestedItems = body.items.map((item) => {
+      const product = productById.get(item.product_id);
+      if (!product) return null;
+      return {
+        storage: product.storage || "",
+        quantity: item.quantity,
+      };
+    });
+
+    if (requestedItems.some((item) => item === null)) {
+      res.status(400).json({ error: "Um ou mais servicos nao estao disponiveis" });
+      return;
+    }
+
+    const safeItems = requestedItems.filter((item): item is NonNullable<typeof item> => item !== null);
+    const durationMinutes = sumAppointmentDurationMinutes(safeItems);
+    const storeHours = parseServiceHours(user.store_hours);
+    const occupiedIntervals = await loadOccupiedIntervals(user.id, body.date);
+    const slots = buildAvailableSlots({
+      date: body.date,
+      durationMinutes,
+      storeHours,
+      occupiedIntervals,
+    });
+
+    res.json({
+      date: body.date,
+      duration_minutes: durationMinutes,
+      slots,
+    });
+  } catch (err) {
+    const invalid = validationError(err);
+    if (invalid) {
+      res.status(400).json(invalid);
+      return;
+    }
+    req.log.error({ err }, "StoreAvailability error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.post("/:storeSlug/orders", async (req, res) => {
   const { storeSlug } = req.params;
 
@@ -213,6 +357,12 @@ router.post("/:storeSlug/orders", async (req, res) => {
 
     if (user.is_open === false) {
       res.status(400).json({ error: "A loja está fechada no momento" });
+      return;
+    }
+
+    const serviceStore = isBookingStoreType(user.store_type);
+    if (serviceStore && (!body.appointment_date || !body.appointment_time)) {
+      res.status(400).json({ error: "Data e horario sao obrigatorios para esse agendamento" });
       return;
     }
 
@@ -253,6 +403,34 @@ router.post("/:storeSlug/orders", async (req, res) => {
     }
 
     const safeItems = items.filter((item): item is NonNullable<typeof item> => item !== null);
+    const appointmentDurationMinutes = serviceStore ? sumAppointmentDurationMinutes(safeItems) : 0;
+    let appointmentEndTime = "";
+
+    if (serviceStore && body.appointment_date && body.appointment_time) {
+      const today = getSaoPauloNowParts().date;
+      if (body.appointment_date < today) {
+        res.status(400).json({ error: "Nao e possivel agendar em uma data passada" });
+        return;
+      }
+
+      const storeHours = parseServiceHours(user.store_hours);
+      const occupiedIntervals = await loadOccupiedIntervals(user.id, body.appointment_date);
+      const availability = isSlotAvailable({
+        date: body.appointment_date,
+        startTime: body.appointment_time,
+        durationMinutes: appointmentDurationMinutes,
+        storeHours,
+        occupiedIntervals,
+      });
+
+      if (!availability.available) {
+        res.status(409).json({ error: "Esse horario nao esta mais disponivel. Escolha outro horario." });
+        return;
+      }
+
+      appointmentEndTime = availability.endTime;
+    }
+
     const subtotal = safeItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     let discount = 0;
     let couponCode = "";
@@ -280,16 +458,20 @@ router.post("/:storeSlug/orders", async (req, res) => {
 
     let deliveryFee = 0;
     if (body.delivery_method === "delivery") {
-      if (typeof body.delivery_fee === "number" && body.delivery_fee > 0) {
-        deliveryFee = body.delivery_fee;
-      } else if (user.delivery_fee_type === "fixed") {
+      if (user.delivery_fee_type === "fixed") {
         deliveryFee = Number(user.delivery_fee_amount || 0);
+      } else if (user.delivery_fee_type === "distance" && typeof body.delivery_fee === "number" && body.delivery_fee > 0) {
+        deliveryFee = body.delivery_fee;
       }
     }
 
-    const finalNotes = body.delivery_method_name 
-      ? `[Entrega: ${body.delivery_method_name}] ${body.notes || ""}`.trim()
-      : body.notes;
+    const finalNotes = [
+      serviceStore && body.appointment_date && body.appointment_time
+        ? `[Agendamento: ${body.appointment_date} ${body.appointment_time}${appointmentEndTime ? `-${appointmentEndTime}` : ""}]`
+        : "",
+      body.delivery_method_name ? `[Modalidade: ${body.delivery_method_name}]` : "",
+      body.notes || "",
+    ].filter(Boolean).join(" ").trim();
 
     const total = Math.max(subtotal - discount + deliveryFee, 0);
     const id = uuidv4();
@@ -313,6 +495,10 @@ router.post("/:storeSlug/orders", async (req, res) => {
         city: body.city || "",
         state: body.state || "",
         reference: body.reference || "",
+        appointment_date: body.appointment_date || "",
+        appointment_time: body.appointment_time || "",
+        appointment_end_time: appointmentEndTime,
+        appointment_duration_minutes: appointmentDurationMinutes,
         payment_method: body.payment_method,
         notes: finalNotes,
         items: JSON.stringify(safeItems),
@@ -348,6 +534,8 @@ router.post("/:storeSlug/orders", async (req, res) => {
       userId: user.id,
       tags: {
         store_type: user.store_type || "celulares",
+        store_mode: user.store_mode || "retail",
+        canonical_niche: user.canonical_niche || "legacy",
         payment_method: body.payment_method,
         delivery_method: body.delivery_method || "delivery",
         total,
@@ -364,7 +552,10 @@ router.post("/:storeSlug/orders", async (req, res) => {
     if (!wantsMercadoPagoPix) {
       // Fire-and-forget: Try to send an automated confirmation message via Evolution API
       const instanceName = `mostrara_store_${user.id}`;
-      const messageText = `*Ol\u00E1, ${body.customer_name}!* \uD83D\uDC4B\n\nRecebemos o seu pedido na loja *${user.store_name}* com sucesso!\n\n*Resumo do Pedido #${order.id.slice(0, 6).toUpperCase()}*\n${safeItems.map(i => `- ${i.quantity}x ${i.name}`).join("\n")}\n\n*Total:* R$ ${total.toFixed(2).replace('.', ',')}\n\nN\u00F3s avisaremos assim que houver atualiza\u00E7\u00F5es. Obrigado pela prefer\u00EAncia!`;
+      const scheduleMessage = serviceStore && body.appointment_date && body.appointment_time
+        ? `\n*Agendamento:* ${body.appointment_date} ${body.appointment_time}${appointmentEndTime ? ` ate ${appointmentEndTime}` : ""}\n`
+        : "\n";
+      const messageText = `*Ol\u00E1, ${body.customer_name}!* \uD83D\uDC4B\n\nRecebemos o seu pedido na loja *${user.store_name}* com sucesso!\n\n*Resumo do Pedido #${order.id.slice(0, 6).toUpperCase()}*\n${safeItems.map(i => `- ${i.quantity}x ${i.name}`).join("\n")}${scheduleMessage}\n*Total:* R$ ${total.toFixed(2).replace('.', ',')}\n\nN\u00F3s avisaremos assim que houver atualiza\u00E7\u00F5es. Obrigado pela prefer\u00EAncia!`;
       
       void evolutionService.sendTextMessage(instanceName, body.customer_whatsapp, messageText).catch(() => undefined);
       // Optional: also send a detailed notification to the merchant's own whatsapp
@@ -375,9 +566,9 @@ router.post("/:storeSlug/orders", async (req, res) => {
           cash: "Dinheiro",
         };
         const payLabel = paymentLabels[body.payment_method] || body.payment_method;
-        const deliveryLabel = (body.delivery_method || "delivery") === "delivery" 
-          ? `🚚 Entrega (${body.delivery_method_name || "Normal"})` 
-          : "🏪 Retirada na loja";
+        const deliveryLabel = (body.delivery_method || "delivery") === "delivery"
+          ? `🚚 ${body.delivery_method_name || "Entrega"}`
+          : `🏪 ${body.delivery_method_name || "Retirada no local"}`;
         const addressLines = buildAddressLines(body);
 
         const itemLines = safeItems.map(i => {
@@ -390,6 +581,9 @@ router.post("/:storeSlug/orders", async (req, res) => {
           ``,
           `👤 *Cliente:* ${body.customer_name}`,
           `📱 *WhatsApp:* ${body.customer_whatsapp}`,
+          serviceStore && body.appointment_date && body.appointment_time
+            ? `🗓️ *Agendamento:* ${body.appointment_date} ${body.appointment_time}${appointmentEndTime ? `-${appointmentEndTime}` : ""}`
+            : "",
           ``,
           `📦 *Itens:*`,
           itemLines,
@@ -565,6 +759,9 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         payment_method: order.payment_method,
         payment_status: order.payment_status,
         delivery_method: order.delivery_method,
+        appointment_date: order.appointment_date,
+        appointment_time: order.appointment_time,
+        appointment_end_time: order.appointment_end_time,
         created_at: order.created_at,
         items: (() => {
           try { return JSON.parse(order.items || "[]"); } catch { return []; }

@@ -1,4 +1,4 @@
-import { pgTable, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, numeric, timestamp, integer } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const ordersTable = pgTable("orders", {
@@ -19,6 +19,10 @@ export const ordersTable = pgTable("orders", {
   city: text("city").default(""),
   state: text("state").default(""),
   reference: text("reference").default(""),
+  appointment_date: text("appointment_date").default(""),
+  appointment_time: text("appointment_time").default(""),
+  appointment_end_time: text("appointment_end_time").default(""),
+  appointment_duration_minutes: integer("appointment_duration_minutes").default(0),
   payment_method: text("payment_method").default("pix"),
   notes: text("notes").default(""),
   items: text("items").notNull().default("[]"),

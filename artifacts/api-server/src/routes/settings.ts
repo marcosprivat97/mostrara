@@ -8,6 +8,7 @@ import { uploadImageToCloudinary } from "../lib/cloudinary.js";
 import { sendPasswordChangedEmail } from "../lib/email.js";
 import { geocodeStoreAddress } from "../lib/location.js";
 import { logSnagEvent, logSnagIdentify } from "../lib/logsnag.js";
+import { resolveStoreTaxonomy } from "../lib/store-taxonomy.js";
 import { parseBody, passwordSchema, settingsSchema, uploadImageSchema, validationError } from "../lib/validation.js";
 import { sanitizeUser } from "./auth.js";
 
@@ -22,7 +23,12 @@ router.put("/", async (req: AuthRequest, res) => {
     if (body.owner_name !== undefined) updateData.owner_name = body.owner_name;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.whatsapp !== undefined) updateData.whatsapp = body.whatsapp;
-    if (body.store_type !== undefined) updateData.store_type = body.store_type;
+    if (body.store_type !== undefined) {
+      const taxonomy = resolveStoreTaxonomy(body.store_type);
+      updateData.store_type = taxonomy.storeType;
+      updateData.store_mode = taxonomy.storeMode;
+      updateData.canonical_niche = taxonomy.canonicalNiche;
+    }
     if (body.description !== undefined) updateData.description = body.description;
     if (body.city !== undefined) updateData.city = body.city;
     if (body.state !== undefined) updateData.state = body.state;

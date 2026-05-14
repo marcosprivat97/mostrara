@@ -36,7 +36,7 @@ export default function ResetPassword() {
     try {
       await confirmPasswordReset(token, password);
       setSuccess(true);
-      setTimeout(() => navigate("/"), 3000);
+      setTimeout(() => navigate("/login"), 3000);
     } catch (err: any) {
       setError(err.message || "Erro ao redefinir senha. Tente novamente.");
     } finally {
@@ -69,8 +69,8 @@ export default function ResetPassword() {
               </div>
               <h2 className="text-lg font-bold text-gray-900">Link inválido</h2>
               <p className="text-sm text-gray-500">Este link expirou. Solicite um novo.</p>
-              <button onClick={() => navigate("/")} className="bg-gray-900 hover:bg-black text-white font-bold px-6 py-2.5 rounded-xl transition-colors">
-                Voltar ao início
+              <button onClick={() => navigate("/login")} className="bg-gray-900 hover:bg-black text-white font-bold px-6 py-2.5 rounded-xl transition-colors">
+                Voltar para o login
               </button>
             </div>
           ) : (

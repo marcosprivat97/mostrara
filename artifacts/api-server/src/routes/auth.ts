@@ -36,6 +36,7 @@ import {
   registerSchema,
   validationError,
 } from "../lib/validation.js";
+import { resolveStoreTaxonomy } from "../lib/store-taxonomy.js";
 
 const router = Router();
 const APP_URL = env.core.appUrl;
@@ -64,6 +65,8 @@ export function sanitizeUser(user: typeof usersTable.$inferSelect) {
     whatsapp: user.whatsapp,
     store_slug: user.store_slug,
     description: user.description,
+    store_mode: user.store_mode,
+    canonical_niche: user.canonical_niche,
     city: user.city,
     state: user.state,
     store_cep: user.store_cep,
@@ -91,7 +94,7 @@ export function sanitizeUser(user: typeof usersTable.$inferSelect) {
     is_open: user.is_open,
     store_hours: user.store_hours,
     delivery_fee_type: user.delivery_fee_type,
-    delivery_fee_amount: user.delivery_fee_amount,
+    delivery_fee_amount: Number(user.delivery_fee_amount || 0),
     created_at: user.created_at,
     last_login_at: user.last_login_at,
   };
@@ -131,6 +134,7 @@ function safeRelativePath(value: string | undefined, fallback: string) {
 router.post("/register", async (req, res) => {
   try {
     const { store_name, store_slug: requestedSlug, owner_name, email, password, phone, whatsapp, store_type, city } = parseBody(registerSchema, req.body);
+    const taxonomy = resolveStoreTaxonomy(store_type);
     const existing = await db.select().from(usersTable).where(eq(usersTable.email, email));
     if (existing.length > 0) {
       res.status(409).json({ error: "E-mail ja cadastrado" });
@@ -154,7 +158,9 @@ router.post("/register", async (req, res) => {
       password_hash,
       phone,
       whatsapp,
-      store_type,
+      store_type: taxonomy.storeType,
+      store_mode: taxonomy.storeMode,
+      canonical_niche: taxonomy.canonicalNiche,
       store_slug,
       city: city || "Rio de Janeiro",
       description: "",
@@ -460,7 +466,10 @@ router.post("/password/reset/confirm", async (req, res) => {
       }).catch(() => undefined);
     }
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      ...(!env.runtime.isProduction ? { reset_url: resetUrl } : {}),
+    });
   } catch (err) {
     const invalid = validationError(err);
     if (invalid) {
@@ -474,7 +483,7 @@ router.post("/password/reset/confirm", async (req, res) => {
 
 router.get("/google/start", (_req, res) => {
   if (!GOOGLE_CLIENT_ID) {
-    res.redirect(`${APP_URL}/?auth=google-unavailable`);
+    res.redirect(`${APP_URL}/login?auth=google-unavailable`);
     return;
   }
 
@@ -495,18 +504,18 @@ router.get("/google/callback", async (req, res) => {
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const state = typeof req.query.state === "string" ? req.query.state : "";
     if (!code) {
-      res.redirect(`${APP_URL}/?auth=google-error`);
+      res.redirect(`${APP_URL}/login?auth=google-error`);
       return;
     }
 
     const stateData = verifyGoogleState(state);
     if (!stateData) {
-      res.redirect(`${APP_URL}/?auth=google-invalid`);
+      res.redirect(`${APP_URL}/login?auth=google-invalid`);
       return;
     }
 
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-      res.redirect(`${APP_URL}/?auth=google-unavailable`);
+      res.redirect(`${APP_URL}/login?auth=google-unavailable`);
       return;
     }
 
@@ -547,6 +556,7 @@ router.get("/google/callback", async (req, res) => {
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
     let user = existing;
     if (!user) {
+      const taxonomy = resolveStoreTaxonomy("celulares");
       const ownerName = profile.name?.trim() || email.split("@")[0];
       const baseSlug = slugify(email.split("@")[0]) || "loja";
       let storeSlug = baseSlug;
@@ -564,7 +574,9 @@ router.get("/google/callback", async (req, res) => {
         phone: "0000000000",
         whatsapp: "0000000000",
         store_slug: storeSlug,
-        store_type: "celulares",
+        store_type: taxonomy.storeType,
+        store_mode: taxonomy.storeMode,
+        canonical_niche: taxonomy.canonicalNiche,
         city: "Rio de Janeiro",
         description: "",
         logo_url: "",
@@ -607,7 +619,7 @@ router.get("/google/callback", async (req, res) => {
         },
       }).catch(() => undefined);
     } else if (user.active === false) {
-      res.redirect(`${APP_URL}/?auth=disabled`);
+      res.redirect(`${APP_URL}/login?auth=disabled`);
       return;
     } else {
       const [updated] = await db
@@ -646,7 +658,7 @@ router.get("/google/callback", async (req, res) => {
     redirectUrl.searchParams.set("token", token);
     res.redirect(redirectUrl.toString());
   } catch (err) {
-    res.redirect(`${APP_URL}/?auth=google-error`);
+    res.redirect(`${APP_URL}/login?auth=google-error`);
   }
 });
 
@@ -681,16 +693,17 @@ router.post("/forgot-password", async (req, res) => {
 
     // Generate a secure token
     const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashValue(token);
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await db.insert(passwordResetTokensTable).values({
       id: uuidv4(),
       user_id: user.id,
-      token,
+      token_hash: tokenHash,
       expires_at: expiresAt,
     });
 
-    const resetUrl = `${env.core.appUrl}/reset-password?token=${token}`;
+    const resetUrl = `${env.core.appUrl}/reset-password?token=${encodeURIComponent(token)}`;
     void sendPasswordResetEmail({
       to: user.email,
       storeName: user.store_name,
@@ -712,13 +725,14 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   try {
     const { token, new_password } = parseBody(passwordResetConfirmSchema, req.body);
+    const tokenHash = hashValue(token);
 
     const [resetToken] = await db
       .select()
       .from(passwordResetTokensTable)
       .where(
         and(
-          eq(passwordResetTokensTable.token, token),
+          eq(passwordResetTokensTable.token_hash, tokenHash),
           gt(passwordResetTokensTable.expires_at, new Date()),
           isNull(passwordResetTokensTable.used_at),
         ),

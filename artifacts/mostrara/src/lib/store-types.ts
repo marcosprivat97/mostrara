@@ -16,15 +16,32 @@ export const STORE_TYPES = [
   "acai",
   "hamburgueria",
   "pizzaria",
+  "quentinhas",
+  "salgados",
+  "doces",
+  "manicure",
+  "salao",
   "pastelaria",
   "salgadinhos",
   "marmitex",
-  "manicure",
-  "salao",
-  "doces",
 ] as const;
 
 export type StoreType = (typeof STORE_TYPES)[number];
+export const CANONICAL_STORE_TYPES = [
+  "acai",
+  "pizzaria",
+  "quentinhas",
+  "doces",
+  "hamburgueria",
+  "salgados",
+  "celulares",
+  "manicure",
+] as const;
+
+export type CanonicalStoreType = (typeof CANONICAL_STORE_TYPES)[number];
+export type StoreMode = "retail" | "food" | "booking";
+export type DeliveryFeeType = "none" | "fixed" | "distance";
+export type ProductStatusValue = "disponivel" | "reservado" | "vendido";
 
 export interface StoreTypeConfig {
   value: StoreType;
@@ -47,6 +64,39 @@ export interface StoreTypeConfig {
   conditions: string[];
   tips: string[];
   icon: typeof Smartphone;
+}
+
+export interface StoreTypeCapabilities {
+  productOptions: boolean;
+  inventory: boolean;
+  shippingDimensions: boolean;
+  shippingCalculator: boolean;
+  localDelivery: boolean;
+  pickup: boolean;
+  serviceScheduling: boolean;
+  backgroundRemoval: boolean;
+}
+
+export interface DeliveryFeeOption {
+  value: DeliveryFeeType;
+  label: string;
+}
+
+export interface StatusOption {
+  value: ProductStatusValue;
+  label: string;
+}
+
+export interface ResolvedStoreTypeConfig extends StoreTypeConfig {
+  mode: StoreMode;
+  canonicalNiche: CanonicalStoreType | null;
+  capabilities: StoreTypeCapabilities;
+  deliveryFeeOptions: DeliveryFeeOption[];
+  statusOptions: StatusOption[];
+  statusLabels: Record<ProductStatusValue, string>;
+  inventoryLabel: string;
+  inventoryUnlimitedLabel: string;
+  optionsLabel: string;
 }
 
 export const STORE_TYPE_CONFIGS: Record<StoreType, StoreTypeConfig> = {
@@ -137,6 +187,50 @@ export const STORE_TYPE_CONFIGS: Record<StoreType, StoreTypeConfig> = {
     conditions: ["Salgada", "Doce", "Especial", "Meio a meio", "Combo"],
     tips: ["Use tamanho como categoria.", "Detalhe borda e meio a meio.", "Crie combos com refrigerante."],
     icon: Pizza,
+  },
+  quentinhas: {
+    value: "quentinhas",
+    label: "Quentinhas & Marmitas",
+    shortLabel: "Quentinhas",
+    productLabel: "Quentinha",
+    productPlural: "quentinhas",
+    categoryLabel: "Tamanho",
+    variantLabel: "Proteina",
+    variantPlaceholder: "Frango, carne, peixe",
+    conditionLabel: "Cardapio",
+    conditionPlaceholder: "Do dia, fit, executivo",
+    detailLabel: "Acompanhamentos",
+    detailPlaceholder: "Arroz, feijao, farofa, salada",
+    warrantyLabel: "Entrega",
+    warrantyPlaceholder: "11h as 14h",
+    descriptionLabel: "Descricao da quentinha",
+    descriptionPlaceholder: "Cardapio do dia, opcoes, taxa de entrega e observacoes.",
+    categories: ["Pequena", "Media", "Grande", "Fit", "Executiva", "Combo"],
+    conditions: ["Do dia", "Fit", "Executiva", "Vegetariana", "Combo"],
+    tips: ["Atualize o cardapio do dia.", "Use tamanho como categoria.", "Informe horario de entrega."],
+    icon: Utensils,
+  },
+  salgados: {
+    value: "salgados",
+    label: "Salgados & Encomendas",
+    shortLabel: "Salgados",
+    productLabel: "Salgado",
+    productPlural: "salgados",
+    categoryLabel: "Categoria",
+    variantLabel: "Quantidade",
+    variantPlaceholder: "Unidade, 25, 50, 100 unidades",
+    conditionLabel: "Tipo",
+    conditionPlaceholder: "Frito, assado, congelado",
+    detailLabel: "Sabores",
+    detailPlaceholder: "Coxinha, bolinha de queijo, kibe",
+    warrantyLabel: "Prazo",
+    warrantyPlaceholder: "Pronta entrega ou encomenda",
+    descriptionLabel: "Descricao do kit",
+    descriptionPlaceholder: "Sabores, quantidade minima, entrega e prazo de encomenda.",
+    categories: ["Unidades", "Cento", "Kits", "Festa", "Congelados", "Promocoes"],
+    conditions: ["Frito", "Assado", "Congelado", "Misto", "Festa"],
+    tips: ["Informe prazo de encomenda.", "Crie kits por quantidade.", "Explique sabores inclusos."],
+    icon: ShoppingBag,
   },
   pastelaria: {
     value: "pastelaria",
@@ -272,11 +366,193 @@ export const STORE_TYPE_CONFIGS: Record<StoreType, StoreTypeConfig> = {
   },
 };
 
-export function getStoreTypeConfig(type?: string | null) {
-  return STORE_TYPE_CONFIGS[(type as StoreType) || "celulares"] ?? STORE_TYPE_CONFIGS.celulares;
+const FOOD_STORE_TYPES = new Set<StoreType>([
+  "acai",
+  "hamburgueria",
+  "pizzaria",
+  "quentinhas",
+  "salgados",
+  "pastelaria",
+  "salgadinhos",
+  "marmitex",
+  "doces",
+]);
+
+const BOOKING_STORE_TYPES = new Set<StoreType>(["manicure", "salao"]);
+const STORE_TYPE_CANONICAL_MAP: Record<StoreType, CanonicalStoreType | null> = {
+  celulares: "celulares",
+  acai: "acai",
+  hamburgueria: "hamburgueria",
+  pizzaria: "pizzaria",
+  quentinhas: "quentinhas",
+  salgados: "salgados",
+  doces: "doces",
+  manicure: "manicure",
+  salao: null,
+  pastelaria: "salgados",
+  salgadinhos: "salgados",
+  marmitex: "quentinhas",
+};
+
+const STORE_TYPE_LOOKUP: Record<StoreType, StoreType> = {
+  celulares: "celulares",
+  acai: "acai",
+  hamburgueria: "hamburgueria",
+  pizzaria: "pizzaria",
+  quentinhas: "quentinhas",
+  salgados: "salgados",
+  doces: "doces",
+  manicure: "manicure",
+  salao: "salao",
+  pastelaria: "pastelaria",
+  salgadinhos: "salgadinhos",
+  marmitex: "marmitex",
+};
+
+const MODE_BEHAVIOR: Record<
+  StoreMode,
+  {
+    capabilities: StoreTypeCapabilities;
+    deliveryFeeOptions: DeliveryFeeOption[];
+    statusOptions: StatusOption[];
+    inventoryLabel: string;
+    inventoryUnlimitedLabel: string;
+    optionsLabel: string;
+  }
+> = {
+  retail: {
+    capabilities: {
+      productOptions: false,
+      inventory: true,
+      shippingDimensions: true,
+      shippingCalculator: true,
+      localDelivery: true,
+      pickup: true,
+      serviceScheduling: false,
+      backgroundRemoval: true,
+    },
+    deliveryFeeOptions: [
+      { value: "none", label: "Frete gratis" },
+      { value: "fixed", label: "Taxa fixa" },
+      { value: "distance", label: "Correios / transportadora" },
+    ],
+    statusOptions: [
+      { value: "disponivel", label: "Disponivel" },
+      { value: "reservado", label: "Reservado" },
+      { value: "vendido", label: "Vendido" },
+    ],
+    inventoryLabel: "Estoque",
+    inventoryUnlimitedLabel: "Estoque livre",
+    optionsLabel: "Variacoes e adicionais",
+  },
+  food: {
+    capabilities: {
+      productOptions: true,
+      inventory: true,
+      shippingDimensions: false,
+      shippingCalculator: false,
+      localDelivery: true,
+      pickup: true,
+      serviceScheduling: false,
+      backgroundRemoval: false,
+    },
+    deliveryFeeOptions: [
+      { value: "none", label: "Entrega gratis" },
+      { value: "fixed", label: "Taxa fixa" },
+    ],
+    statusOptions: [
+      { value: "disponivel", label: "No cardapio" },
+      { value: "reservado", label: "Sob encomenda" },
+      { value: "vendido", label: "Indisponivel" },
+    ],
+    inventoryLabel: "Estoque",
+    inventoryUnlimitedLabel: "Disponibilidade livre",
+    optionsLabel: "Adicionais e complementos",
+  },
+  booking: {
+    capabilities: {
+      productOptions: false,
+      inventory: false,
+      shippingDimensions: false,
+      shippingCalculator: false,
+      localDelivery: true,
+      pickup: true,
+      serviceScheduling: true,
+      backgroundRemoval: false,
+    },
+    deliveryFeeOptions: [
+      { value: "none", label: "Sem taxa de visita" },
+      { value: "fixed", label: "Taxa de atendimento" },
+    ],
+    statusOptions: [
+      { value: "disponivel", label: "Disponivel" },
+      { value: "reservado", label: "Agenda limitada" },
+      { value: "vendido", label: "Indisponivel" },
+    ],
+    inventoryLabel: "Vagas",
+    inventoryUnlimitedLabel: "Agenda livre",
+    optionsLabel: "Opcoes do servico",
+  },
+};
+
+function normalizeStoreType(type?: string | null): StoreType {
+  const normalized = String(type || "").trim().toLowerCase();
+  return (STORE_TYPES as readonly string[]).includes(normalized)
+    ? (normalized as StoreType)
+    : "celulares";
 }
 
-export const STORE_TYPE_OPTIONS = Object.values(STORE_TYPE_CONFIGS).map((config) => ({
-  value: config.value,
-  label: config.label,
+export function resolveCanonicalStoreType(type?: string | null): CanonicalStoreType | null {
+  return STORE_TYPE_CANONICAL_MAP[normalizeStoreType(type)];
+}
+
+function resolveStoreMode(type?: string | null): StoreMode {
+  const normalized = normalizeStoreType(type);
+  if (BOOKING_STORE_TYPES.has(normalized)) return "booking";
+  if (FOOD_STORE_TYPES.has(normalized)) return "food";
+  return "retail";
+}
+
+export function getStoreTypeConfig(type?: string | null): ResolvedStoreTypeConfig {
+  const normalized = normalizeStoreType(type);
+  const resolvedType = STORE_TYPE_LOOKUP[normalized] ?? "celulares";
+  const base = STORE_TYPE_CONFIGS[resolvedType] ?? STORE_TYPE_CONFIGS.celulares;
+  const mode = resolveStoreMode(normalized);
+  const behavior = MODE_BEHAVIOR[mode];
+  const statusLabels = Object.fromEntries(
+    behavior.statusOptions.map((status) => [status.value, status.label]),
+  ) as Record<ProductStatusValue, string>;
+
+  return {
+    ...base,
+    mode,
+    canonicalNiche: STORE_TYPE_CANONICAL_MAP[normalized],
+    capabilities: behavior.capabilities,
+    deliveryFeeOptions: behavior.deliveryFeeOptions,
+    statusOptions: behavior.statusOptions,
+    statusLabels,
+    inventoryLabel: behavior.inventoryLabel,
+    inventoryUnlimitedLabel: behavior.inventoryUnlimitedLabel,
+    optionsLabel: behavior.optionsLabel,
+  };
+}
+
+export const STORE_TYPE_OPTION_VALUES = [
+  "celulares",
+  "acai",
+  "hamburgueria",
+  "pizzaria",
+  "quentinhas",
+  "doces",
+  "salgados",
+  "manicure",
+  "pastelaria",
+  "salgadinhos",
+  "marmitex",
+  "salao",
+] as const satisfies readonly StoreType[];
+
+export const STORE_TYPE_OPTIONS = STORE_TYPE_OPTION_VALUES.map((type) => ({
+  value: type,
+  label: type === "salao" ? `${STORE_TYPE_CONFIGS[type].label} (legado)` : STORE_TYPE_CONFIGS[type].label,
 }));

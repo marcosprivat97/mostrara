@@ -4,7 +4,9 @@ import { Package, Copy, ExternalLink, TrendingUp, ArrowRight, Plus, Zap, CircleH
 import { useAuth } from "@/contexts/AuthContext";
 import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { formatPrice } from "@/lib/formatters";
+import { getStoreTypeConfig } from "@/lib/store-types";
 import { cn } from "@/lib/utils";
 import { buildStoreUrl } from "@/lib/urls";
 
@@ -59,6 +61,11 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
+  const storeConfig = getStoreTypeConfig(user?.store_type ?? user?.canonical_niche);
+  const createItemLabel = storeConfig.mode === "booking" ? "Novo servico" : storeConfig.mode === "food" ? "Novo item" : "Novo produto";
+  const recentItemsLabel = storeConfig.mode === "booking" ? "Servicos recentes" : storeConfig.mode === "food" ? "Itens recentes" : "Produtos recentes";
+  const emptyItemsLabel = storeConfig.mode === "booking" ? "Nenhum servico cadastrado" : storeConfig.mode === "food" ? "Nenhum item cadastrado" : "Nenhum produto cadastrado";
+  const addFirstItemLabel = storeConfig.mode === "booking" ? "Adicionar servico" : storeConfig.mode === "food" ? "Adicionar item" : "Adicionar produto";
 
   useEffect(() => {
     if (!token) return;
@@ -81,14 +88,18 @@ export default function DashboardOverview() {
         toastError("Erro ao carregar painel");
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [toastError, token]);
 
   const storeUrl = user?.store_slug ? buildStoreUrl(user.store_slug) : null;
 
-  const copyLink = () => {
+  const copyLink = async () => {
     if (!storeUrl) return;
-    navigator.clipboard.writeText(storeUrl);
-    success("Link copiado!");
+    try {
+      await copyTextToClipboard(storeUrl);
+      success("Link copiado!");
+    } catch {
+      toastError("Nao foi possivel copiar o link da vitrine");
+    }
   };
 
   const openGuide = () => {
@@ -134,7 +145,7 @@ export default function DashboardOverview() {
             className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            Novo produto
+            {createItemLabel}
           </button>
         </div>
       </div>
@@ -246,7 +257,7 @@ export default function DashboardOverview() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-gray-400" />
-            <h2 className="font-semibold text-gray-900 text-sm">Produtos recentes</h2>
+            <h2 className="font-semibold text-gray-900 text-sm">{recentItemsLabel}</h2>
           </div>
           <button
             onClick={() => navigate("/dashboard/products")}
@@ -259,12 +270,12 @@ export default function DashboardOverview() {
         {products.length === 0 ? (
           <div className="py-16 text-center">
             <Package className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm font-medium">Nenhum produto cadastrado</p>
+            <p className="text-gray-400 text-sm font-medium">{emptyItemsLabel}</p>
             <button
               onClick={() => navigate("/dashboard/products")}
               className="mt-3 text-sm text-red-600 font-semibold hover:underline"
             >
-              Adicionar produto
+              {addFirstItemLabel}
             </button>
           </div>
         ) : (

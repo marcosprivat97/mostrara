@@ -119,7 +119,7 @@ export function WhatsAppConnection() {
     } catch (err) {
       console.error("WhatsApp status fetch error:", err);
       if (!isMountedRef.current) return;
-      
+
       // If it's a network error or timeout, don't count it as a "null QR" retry immediately
       // unless it's persistent.
       nullQrCountRef.current += 1;
@@ -406,7 +406,7 @@ export function WhatsAppConnection() {
               <MessageSquare className="w-8 h-8" />
             </div>
             <p className="text-sm text-gray-500 font-medium text-center">
-              Seu número está conectado ao Mostrara via Evolution API.
+              Seu número do WhatsApp está conectado ao Mostrara.
             </p>
             <button
               onClick={handleDisconnect}

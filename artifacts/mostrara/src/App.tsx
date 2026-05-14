@@ -7,10 +7,12 @@ import CrispChat from "@/components/CrispChat";
 
 // Lazy-load all top-level routes for faster initial paint
 const Landing = lazy(() => import("@/pages/Landing"));
+const Login = lazy(() => import("@/pages/Login"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Storefront = lazy(() => import("@/pages/Storefront"));
 const OrderTracking = lazy(() => import("@/pages/OrderTracking"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const GoogleAuthCallback = lazy(() => import("@/pages/GoogleAuthCallback"));
 
 function PageLoader() {
   return (
@@ -27,11 +29,14 @@ function App() {
         <Suspense fallback={<PageLoader />}>
           <Switch>
             <Route path="/" component={Landing} />
+            <Route path="/login" component={Login} />
+            <Route path="/register" component={Login} />
             <Route path="/dashboard" component={Dashboard} />
             <Route path="/dashboard/*" component={Dashboard} />
             <Route path="/loja/:storeSlug/pedido/:orderId" component={OrderTracking} />
             <Route path="/loja/:storeSlug" component={Storefront} />
             <Route path="/reset-password" component={ResetPassword} />
+            <Route path="/auth/google/callback" component={GoogleAuthCallback} />
             <Route>
               <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
