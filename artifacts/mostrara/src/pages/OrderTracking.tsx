@@ -55,6 +55,9 @@ interface TrackingOrder {
   courier_delivery_note?: string;
   courier_delivery_photo_url?: string;
   customer_delivery_confirmed_at?: string | null;
+  customer_delivery_rating?: number | null;
+  customer_delivery_feedback?: string;
+  customer_delivery_feedback_at?: string | null;
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
@@ -169,6 +172,8 @@ export default function OrderTracking() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [manualRefreshTick, setManualRefreshTick] = useState(0);
   const [deliveryCodeInput, setDeliveryCodeInput] = useState("");
+  const [deliveryRating, setDeliveryRating] = useState(5);
+  const [deliveryFeedback, setDeliveryFeedback] = useState("");
 
   const paymentRef = useRef<TrackingPayment | null>(null);
   const hasLoadedRef = useRef(false);
@@ -306,6 +311,9 @@ export default function OrderTracking() {
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
   const courierDeliveryPhotoUrl = order?.courier_delivery_photo_url?.trim() || "";
   const customerDeliveryConfirmedLabel = order?.customer_delivery_confirmed_at ? formatDateTime(order.customer_delivery_confirmed_at) : "";
+  const customerDeliveryRating = Number(order?.customer_delivery_rating || 0);
+  const customerDeliveryFeedback = order?.customer_delivery_feedback?.trim() || "";
+  const customerDeliveryFeedbackLabel = order?.customer_delivery_feedback_at ? formatDateTime(order.customer_delivery_feedback_at) : "";
   const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
   const deliveryReopenedLabel = order?.delivery_reopened_at ? formatDateTime(order.delivery_reopened_at) : "";
   const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
@@ -350,6 +358,23 @@ export default function OrderTracking() {
       handleManualRefresh();
     } catch (err) {
       setSoftError(err instanceof Error ? err.message : "Nao foi possivel confirmar o recebimento.");
+    }
+  };
+
+  const submitFeedback = async () => {
+    if (!storeSlug || !order?.id) return;
+    try {
+      await apiFetch<{ order: TrackingOrder }>(
+        `/store/${encodeURIComponent(storeSlug)}/orders/${encodeURIComponent(order.id)}/feedback`,
+        {
+          method: "POST",
+          body: JSON.stringify({ rating: deliveryRating, feedback: deliveryFeedback }),
+        },
+      );
+      setDeliveryFeedback("");
+      handleManualRefresh();
+    } catch (err) {
+      setSoftError(err instanceof Error ? err.message : "Nao foi possivel enviar a avaliacao.");
     }
   };
 
@@ -814,6 +839,55 @@ export default function OrderTracking() {
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
                 <p className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Recebimento confirmado</p>
                 <p className="mt-1 leading-relaxed">Confirmado em {customerDeliveryConfirmedLabel}.</p>
+              </div>
+            ) : null}
+            {customerDeliveryConfirmedLabel && !customerDeliveryFeedbackLabel ? (
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-violet-500">Avaliar entrega</p>
+                <p className="mt-1 text-xs leading-relaxed text-violet-700">
+                  Conte como foi a entrega. Isso ajuda a loja a melhorar.
+                </p>
+                <div className="mt-3 space-y-3">
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setDeliveryRating(value)}
+                        className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition-colors",
+                          deliveryRating === value
+                            ? "border-violet-600 bg-violet-600 text-white"
+                            : "border-violet-200 bg-white text-violet-700",
+                        )}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={deliveryFeedback}
+                    onChange={(event) => setDeliveryFeedback(event.target.value)}
+                    placeholder="Deixe um comentario rapido"
+                    rows={3}
+                    className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={submitFeedback}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700 transition-colors"
+                  >
+                    Enviar avaliacao
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {customerDeliveryFeedbackLabel ? (
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-violet-500">Avaliacao enviada</p>
+                <p className="mt-1 font-bold">Nota {customerDeliveryRating || 0}/5</p>
+                <p className="mt-1 leading-relaxed">Enviada em {customerDeliveryFeedbackLabel}.</p>
+                {customerDeliveryFeedback ? <p className="mt-2 text-xs text-violet-700">{customerDeliveryFeedback}</p> : null}
               </div>
             ) : null}
             {closedAtLabel ? (

@@ -889,6 +889,76 @@ router.post("/:storeSlug/orders/:orderId/confirm-delivery", async (req, res) => 
   }
 });
 
+router.post("/:storeSlug/orders/:orderId/feedback", async (req, res) => {
+  try {
+    const { storeSlug, orderId } = req.params;
+    const rating = Number.parseInt(String(req.body?.rating ?? ""), 10);
+    const feedback = typeof req.body?.feedback === "string" ? req.body.feedback.trim().slice(0, 500) : "";
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.store_slug, storeSlug), eq(usersTable.active, true)));
+
+    if (!user) {
+      res.status(404).json({ error: "Loja nao encontrada" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, orderId), eq(ordersTable.user_id, user.id)))
+      .limit(1);
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "entregue" || !order.customer_delivery_confirmed_at) {
+      res.status(400).json({ error: "Confirme o recebimento antes de enviar o feedback" });
+      return;
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      res.status(400).json({ error: "Nota invalida" });
+      return;
+    }
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        customer_delivery_rating: rating,
+        customer_delivery_feedback: feedback,
+        customer_delivery_feedback_at: new Date(),
+      })
+      .where(and(eq(ordersTable.id, order.id), eq(ordersTable.user_id, user.id)))
+      .returning();
+
+    const instanceName = `mostrara_store_${user.id}`;
+    const merchantMessage = `O cliente avaliou a entrega da *${user.store_name}* com nota ${rating}/5${feedback ? `: ${feedback}` : "."}`;
+    if (user.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, user.whatsapp, merchantMessage).catch(() => undefined);
+    }
+    if (updatedOrder.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, updatedOrder.customer_whatsapp, `Obrigado pela avaliacao da entrega na *${user.store_name}*!`).catch(() => undefined);
+    }
+
+    res.json({
+      order: {
+        ...updatedOrder,
+        items: (() => {
+          try { return JSON.parse(updatedOrder.items || "[]"); } catch { return []; }
+        })(),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "DeliveryFeedback error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.get("/:storeSlug/orders/:orderId", async (req, res) => {
   try {
     const { storeSlug, orderId } = req.params;
@@ -957,6 +1027,9 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,
         courier_delivery_photo_url: orderAfterEtaCheck.courier_delivery_photo_url,
         customer_delivery_confirmed_at: orderAfterEtaCheck.customer_delivery_confirmed_at,
+        customer_delivery_rating: orderAfterEtaCheck.customer_delivery_rating,
+        customer_delivery_feedback: orderAfterEtaCheck.customer_delivery_feedback,
+        customer_delivery_feedback_at: orderAfterEtaCheck.customer_delivery_feedback_at,
         closed_at: orderAfterEtaCheck.closed_at,
         delivery_reopened_at: orderAfterEtaCheck.delivery_reopened_at,
         delivery_reopen_note: orderAfterEtaCheck.delivery_reopen_note,
