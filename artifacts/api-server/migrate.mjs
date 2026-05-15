@@ -1,6 +1,10 @@
 // Run migration to add missing columns to users table
-const SUPABASE_URL = "https://wzytxexedahijpzbbucv.supabase.co";
-const SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6eXR4ZXhlZGFoaWpwemJidWN2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzgyOTM4MCwiZXhwIjoyMDkzNDA1MzgwfQ.-GISiZ_GEkerHOSibgY7iqFa1WyHhWQw__6aW1d0L9o";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_KEY are required");
+}
 
 const migrations = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_badge boolean DEFAULT false`,

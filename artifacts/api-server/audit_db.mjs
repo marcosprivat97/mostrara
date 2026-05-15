@@ -2,19 +2,24 @@
 import pg from "pg";
 const { Client } = pg;
 
-const DB_URL = "postgresql://postgres.wzytxexedahijpzbbucv:24526082Fe.%40@aws-1-sa-east-1.pooler.supabase.com:5432/postgres";
+const DB_URL = process.env.DATABASE_URL;
+
+if (!DB_URL) {
+  throw new Error("DATABASE_URL is required");
+}
 
 // Expected schema from Drizzle definitions
 const EXPECTED = {
   users: [
     "id","store_name","owner_name","email","password_hash","phone","whatsapp",
-    "store_slug","store_type","description","city","state","store_cep","store_address",
+    "store_slug","store_type","store_mode","canonical_niche","description","city","state","store_cep","store_address",
     "store_address_number","store_neighborhood","store_latitude","store_longitude",
     "logo_url","cover_url","theme_primary","theme_secondary","theme_accent",
     "plan","free_forever","verified_badge","plan_started_at","plan_expires_at",
     "active","mp_access_token","mp_refresh_token","mp_user_id","mp_connected_at",
     "mp_access_token_expires_at","mp_refresh_token_expires_at",
-    "onboarding_completed_at","created_at","last_login_at"
+    "onboarding_completed_at","is_open","store_hours","delivery_fee_type","delivery_fee_amount",
+    "created_at","last_login_at"
   ],
   products: [
     "id","user_id","name","category","storage","price","condition","battery",

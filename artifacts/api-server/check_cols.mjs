@@ -1,6 +1,11 @@
 import pg from 'pg';
 const { Client } = pg;
-const c = new Client('postgresql://postgres.wzytxexedahijpzbbucv:24526082Fe.%40@aws-1-sa-east-1.pooler.supabase.com:5432/postgres');
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required");
+}
+
+const c = new Client(process.env.DATABASE_URL);
 
 async function run() {
   await c.connect();

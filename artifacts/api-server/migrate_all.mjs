@@ -140,8 +140,10 @@ async function run() {
   // rpc/exec_sql may not exist, use the pg connection directly
   console.log("rpc/exec_sql not available, trying pg directly...");
   
-  // Use the DATABASE_URL from .env
-  const DATABASE_URL = "postgresql://postgres.wzytxexedahijpzbbucv:24526082Fe.%40@aws-1-sa-east-1.pooler.supabase.com:5432/postgres";
+  const DATABASE_URL = process.env.DATABASE_URL;
+  if (!DATABASE_URL) {
+    throw new Error("DATABASE_URL is required");
+  }
   
   // Dynamic import pg
   const pg = await import("pg");
