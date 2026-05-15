@@ -26,6 +26,14 @@ interface Product {
   storage?: string;
 }
 
+interface OrderFeedback {
+  id: string;
+  customer_name: string;
+  customer_delivery_rating?: number | null;
+  customer_delivery_feedback?: string;
+  customer_delivery_feedback_at?: string | null;
+}
+
 function normalizeProduct(p: Partial<Product>): Product {
   return {
     id: String(p.id ?? crypto.randomUUID()),
@@ -58,6 +66,7 @@ export default function DashboardOverview() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null);
+  const [orders, setOrders] = useState<OrderFeedback[]>([]);
   const [loading, setLoading] = useState(true);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
@@ -74,14 +83,16 @@ export default function DashboardOverview() {
       apiFetch<Stats>("/dashboard/stats", opts),
       apiFetch<{ products: Product[] }>("/products", opts),
       apiFetch<{ current_month: MonthSummary }>("/sales/monthly-summary", opts),
+      apiFetch<{ orders: OrderFeedback[] }>("/orders", opts),
     ])
-      .then(([s, p, ms]) => {
+      .then(([s, p, ms, o]) => {
         console.log("📊 Stats Recebidos:", s);
         console.log("📦 Produtos Recebidos:", p);
         console.log("💰 Resumo Mensal:", ms);
         setStats(s);
         setProducts(Array.isArray(p.products) ? p.products.map(normalizeProduct).slice(0, 6) : []);
         setMonthSummary(ms.current_month);
+        setOrders(Array.isArray(o.orders) ? o.orders : []);
       })
       .catch((err) => {
         console.error("❌ Erro ao carregar dados do painel:", err);
@@ -91,6 +102,13 @@ export default function DashboardOverview() {
   }, [toastError, token]);
 
   const storeUrl = user?.store_slug ? buildStoreUrl(user.store_slug) : null;
+  const feedbackOrders = orders
+    .filter((order) => order.customer_delivery_feedback_at && Number.isFinite(Number(order.customer_delivery_rating)))
+    .sort((a, b) => new Date(b.customer_delivery_feedback_at || "").getTime() - new Date(a.customer_delivery_feedback_at || "").getTime());
+  const feedbackCount = feedbackOrders.length;
+  const averageRating = feedbackCount > 0
+    ? feedbackOrders.reduce((sum, order) => sum + Number(order.customer_delivery_rating || 0), 0) / feedbackCount
+    : 0;
 
   const copyLink = async () => {
     if (!storeUrl) return;
@@ -254,6 +272,46 @@ export default function DashboardOverview() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Satisfacao da entrega</p>
+            <h2 className="mt-1 text-lg font-black text-gray-900">Feedback dos clientes</h2>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-black text-gray-900">{feedbackCount > 0 ? averageRating.toFixed(1) : "0.0"}</p>
+            <p className="text-xs text-gray-400">media / 5</p>
+          </div>
+        </div>
+
+        {feedbackCount === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+            <p className="text-sm font-medium text-gray-500">Ainda nao existe avaliacao de entrega confirmada.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {feedbackOrders.slice(0, 3).map((order) => (
+              <div key={order.id} className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-900">{order.customer_name}</p>
+                    <p className="text-xs text-gray-500">
+                      {order.customer_delivery_feedback_at ? new Date(order.customer_delivery_feedback_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-black text-violet-700">
+                    {Number(order.customer_delivery_rating || 0).toFixed(1)}
+                  </span>
+                </div>
+                {order.customer_delivery_feedback ? (
+                  <p className="mt-2 text-sm leading-relaxed text-violet-800">{order.customer_delivery_feedback}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent products */}
