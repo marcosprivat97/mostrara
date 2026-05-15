@@ -109,6 +109,8 @@ export default function DashboardOverview() {
   const averageRating = feedbackCount > 0
     ? feedbackOrders.reduce((sum, order) => sum + Number(order.customer_delivery_rating || 0), 0) / feedbackCount
     : 0;
+  const lowRatingOrders = feedbackOrders.filter((order) => Number(order.customer_delivery_rating || 0) <= 2);
+  const lowRatingCount = lowRatingOrders.length;
 
   const copyLink = async () => {
     if (!storeUrl) return;
@@ -285,6 +287,15 @@ export default function DashboardOverview() {
             <p className="text-xs text-gray-400">media / 5</p>
           </div>
         </div>
+
+        {lowRatingCount > 0 ? (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-red-500">Atenção</p>
+            <p className="mt-1 text-sm font-semibold text-red-800">
+              {lowRatingCount} entrega{lowRatingCount === 1 ? "" : "s"} com nota baixa precisam de revisão.
+            </p>
+          </div>
+        ) : null}
 
         {feedbackCount === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">

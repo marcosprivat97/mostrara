@@ -916,6 +916,24 @@ router.post("/:storeSlug/orders/:orderId/feedback", async (req, res) => {
       return;
     }
 
+    let courierInfo: { owner_name: string; whatsapp: string } | null = null;
+    if (order.assigned_courier_id) {
+      const [courier] = await db
+        .select({
+          owner_name: usersTable.owner_name,
+          whatsapp: usersTable.whatsapp,
+        })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.id, order.assigned_courier_id),
+          eq(usersTable.account_role, "courier"),
+        ))
+        .limit(1);
+      if (courier) {
+        courierInfo = { owner_name: courier.owner_name, whatsapp: courier.whatsapp };
+      }
+    }
+
     if (order.status !== "entregue" || !order.customer_delivery_confirmed_at) {
       res.status(400).json({ error: "Confirme o recebimento antes de enviar o feedback" });
       return;
@@ -943,6 +961,17 @@ router.post("/:storeSlug/orders/:orderId/feedback", async (req, res) => {
     }
     if (updatedOrder.customer_whatsapp) {
       void evolutionService.sendTextMessage(instanceName, updatedOrder.customer_whatsapp, `Obrigado pela avaliacao da entrega na *${user.store_name}*!`).catch(() => undefined);
+    }
+    if (rating <= 2) {
+      const lowRatingMessage = feedback
+        ? `A entrega do pedido na *${user.store_name}* recebeu nota ${rating}/5. Feedback: ${feedback}`
+        : `A entrega do pedido na *${user.store_name}* recebeu nota ${rating}/5.`;
+      if (user.whatsapp) {
+        void evolutionService.sendTextMessage(instanceName, user.whatsapp, lowRatingMessage).catch(() => undefined);
+      }
+      if (courierInfo?.whatsapp) {
+        void evolutionService.sendTextMessage(instanceName, courierInfo.whatsapp, `A entrega da loja *${user.store_name}* recebeu nota baixa (${rating}/5). Revise o atendimento.`).catch(() => undefined);
+      }
     }
 
     res.json({
