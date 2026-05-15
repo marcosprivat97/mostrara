@@ -43,6 +43,7 @@ interface TrackingOrder {
   assigned_courier_name?: string;
   assigned_courier_whatsapp?: string;
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
+  courier_pickup_at?: string | null;
   items: TrackingItem[];
 }
 
@@ -274,6 +275,7 @@ export default function OrderTracking() {
       : courierAssignmentStatus === "pending"
         ? "Aguardando aceitação"
         : "";
+  const courierPickupLabel = order?.courier_pickup_at ? formatDateTime(order.courier_pickup_at) : "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -654,6 +656,12 @@ export default function OrderTracking() {
                 )}>
                   {courierAssignmentLabel}
                 </span>
+              </div>
+            ) : null}
+            {courierPickupLabel ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Coleta</span>
+                <span className="text-right font-medium text-amber-700">{courierPickupLabel}</span>
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (

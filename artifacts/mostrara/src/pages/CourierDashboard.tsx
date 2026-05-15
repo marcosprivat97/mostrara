@@ -33,6 +33,7 @@ interface CourierOrder {
   assigned_courier_id?: string | null;
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_assignment_updated_at?: string | null;
+  courier_pickup_at?: string | null;
   items: CourierOrderItem[];
 }
 
@@ -115,6 +116,22 @@ export default function CourierDashboard() {
     }
   };
 
+  const markPickedUp = async (orderId: string) => {
+    setUpdatingId(orderId);
+    try {
+      await apiFetch(`/couriers/orders/${orderId}/pickup`, {
+        method: "PUT",
+        ...opts,
+      });
+      success("Coleta confirmada");
+      loadOrders();
+    } catch (err) {
+      error(err instanceof Error ? err.message : "Nao foi possivel confirmar a coleta");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const declineDelivery = async (orderId: string) => {
     setUpdatingId(orderId);
     try {
@@ -148,7 +165,8 @@ export default function CourierDashboard() {
   };
 
   const pendingOrders = orders.filter((order) => order.status === "saiu_entrega" && (order.courier_assignment_status ?? "pending") === "pending");
-  const acceptedOrders = orders.filter((order) => order.status === "saiu_entrega" && (order.courier_assignment_status ?? "pending") === "accepted");
+  const acceptedOrders = orders.filter((order) => order.status === "saiu_entrega" && (order.courier_assignment_status ?? "pending") === "accepted" && !order.courier_pickup_at);
+  const pickedUpOrders = orders.filter((order) => order.status === "saiu_entrega" && Boolean(order.courier_pickup_at));
   const onRouteOrders = orders.filter((order) => order.status === "em_rota");
   const declinedOrders = orders.filter((order) => order.status === "saiu_entrega" && (order.courier_assignment_status ?? "") === "declined");
   const queuedOrders = orders.filter((order) => order.status !== "saiu_entrega" && order.status !== "em_rota" && order.status !== "entregue");
@@ -189,6 +207,10 @@ export default function CourierDashboard() {
             <p className="text-3xl font-black mt-1">{acceptedOrders.length}</p>
           </div>
           <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+            <p className="text-xs uppercase tracking-wider text-white/50">Coletadas</p>
+            <p className="text-3xl font-black mt-1">{pickedUpOrders.length}</p>
+          </div>
+          <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
             <p className="text-xs uppercase tracking-wider text-white/50">Em rota</p>
             <p className="text-3xl font-black mt-1">{onRouteOrders.length}</p>
           </div>
@@ -207,7 +229,7 @@ export default function CourierDashboard() {
           </div>
         )}
 
-        {!loading && pendingOrders.length === 0 && acceptedOrders.length === 0 && onRouteOrders.length === 0 && queuedOrders.length === 0 && (
+        {!loading && pendingOrders.length === 0 && acceptedOrders.length === 0 && pickedUpOrders.length === 0 && onRouteOrders.length === 0 && queuedOrders.length === 0 && (
           <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-7 w-7" />
@@ -312,6 +334,75 @@ export default function CourierDashboard() {
                     </div>
                     <span className="text-xs font-medium text-gray-400">
                       {new Date(order.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-black text-gray-900">{order.customer_name}</h2>
+                    <p className="text-sm text-gray-500">{formatPrice(order.total)}</p>
+                  </div>
+
+                  <div className="space-y-1 text-sm text-gray-600">
+                    {address && (
+                      <p className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 text-gray-400" />
+                        <span>{address}</span>
+                      </p>
+                    )}
+                    {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
+                    {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {order.items.map((item, index) => (
+                      <span key={index} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700">
+                        {item.quantity}x {item.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 lg:min-w-56">
+                  <button
+                    type="button"
+                    onClick={() => openWhatsApp(order.customer_whatsapp)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Falar com cliente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markPickedUp(order.id)}
+                    disabled={updatingId === order.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-60 transition-colors"
+                  >
+                    {updatingId === order.id ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
+                    ) : (
+                      <Package className="h-4 w-4" />
+                    )}
+                    Confirmar coleta
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {pickedUpOrders.map((order) => {
+          const address = formatAddress(order);
+          return (
+            <div key={order.id} className="rounded-3xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold bg-amber-100 text-amber-800">
+                      <Package className="w-3.5 h-3.5" />
+                      Coletado
+                    </div>
+                    <span className="text-xs font-medium text-gray-400">
+                      {order.courier_pickup_at ? new Date(order.courier_pickup_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}
                     </span>
                   </div>
 

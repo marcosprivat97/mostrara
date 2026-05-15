@@ -14,6 +14,7 @@ export const ordersTable = pgTable("orders", {
   assigned_courier_id: text("assigned_courier_id"),
   courier_assignment_status: text("courier_assignment_status").default("unassigned").notNull(),
   courier_assignment_updated_at: timestamp("courier_assignment_updated_at"),
+  courier_pickup_at: timestamp("courier_pickup_at"),
   cep: text("cep").default(""),
   street: text("street").default(""),
   number: text("number").default(""),

@@ -129,6 +129,7 @@ async function runMigration(scriptName, label) {
 try {
   await runMigration("migrate_phase3.mjs", "fase 3");
   await runMigration("migrate_phase6.mjs", "fase 6");
+  await runMigration("migrate_phase8.mjs", "fase 8");
   await buildAll();
 } catch (err) {
   console.error(err);

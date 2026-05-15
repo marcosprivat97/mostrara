@@ -36,6 +36,7 @@ interface Order {
   created_at: string;
   assigned_courier_id?: string | null;
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
+  courier_pickup_at?: string | null;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -395,7 +396,12 @@ export default function DashboardOrdersKanban() {
                                   ? "Entregador aceitou"
                                   : order.courier_assignment_status === "declined"
                                     ? "Entregador recusou"
-                                    : "Aguardando entregador"}
+                                  : "Aguardando entregador"}
+                              </p>
+                            )}
+                            {order.courier_pickup_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                                Coletado {new Date(order.courier_pickup_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                               </p>
                             )}
                           </div>

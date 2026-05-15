@@ -133,6 +133,13 @@ function buildRedispatchMessages(storeName: string, courierName: string) {
   };
 }
 
+function buildPickupMessages(storeName: string, courierName: string) {
+  return {
+    merchant: `O entregador ${courierName} confirmou a coleta do pedido na *${storeName}*.`,
+    customer: `Seu pedido na *${storeName}* foi coletado pelo entregador ${courierName} e ja esta a caminho.`,
+  };
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -256,6 +263,11 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
       return;
     }
 
+    if (!order.courier_pickup_at) {
+      res.status(400).json({ error: "Confirme a coleta antes de sair para entrega" });
+      return;
+    }
+
     const [merchant] = await db
       .select()
       .from(usersTable)
@@ -283,6 +295,79 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "CourierOnRoute error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/orders/:id/pickup", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "saiu_entrega") {
+      res.status(400).json({ error: "Este pedido ainda nao pode ser coletado" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        courier_pickup_at: new Date(),
+        courier_assignment_status: "accepted" as CourierAssignmentStatus,
+        courier_assignment_updated_at: new Date(),
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const pickupMessages = buildPickupMessages(merchant?.store_name || "nossa loja", currentUser.owner_name);
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, pickupMessages.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, pickupMessages.customer).catch(() => undefined);
+    }
+
+    const [redisplayedOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .limit(1);
+
+    res.json({ order: formatOrder(redisplayedOrder || updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierPickup error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });
