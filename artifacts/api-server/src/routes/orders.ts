@@ -205,7 +205,7 @@ router.post("/:id/cancel", async (req: AuthRequest, res: Response) => {
 
     const [updatedOrder] = await db
       .update(ordersTable)
-      .set({ status: "cancelado", canceled_at: new Date() })
+      .set({ status: "cancelado", canceled_at: new Date(), closed_at: null })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
         eq(ordersTable.user_id, req.userId!),
@@ -253,6 +253,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
       .update(ordersTable)
       .set({
         status,
+        closed_at: null,
         ...(status === "confirmado" ? { confirmed_at: new Date() } : {}),
         ...(status === "entregue" ? { confirmed_at: currentOrder.confirmed_at || new Date() } : {}),
         ...(status === "entregue"
@@ -391,6 +392,80 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.put("/:id/archive", async (req: AuthRequest, res: Response) => {
+  try {
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .limit(1);
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (currentOrder.status !== "entregue") {
+      res.status(400).json({ error: "Apenas pedidos entregues podem ser arquivados" });
+      return;
+    }
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({ closed_at: new Date() })
+      .where(and(
+        eq(ordersTable.id, currentOrder.id),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .returning();
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "ArchiveOrder error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/:id/unarchive", async (req: AuthRequest, res: Response) => {
+  try {
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .limit(1);
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (currentOrder.status !== "entregue") {
+      res.status(400).json({ error: "Apenas pedidos entregues podem ser reabertos" });
+      return;
+    }
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({ closed_at: null })
+      .where(and(
+        eq(ordersTable.id, currentOrder.id),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .returning();
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "UnarchiveOrder error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
   try {
     const courierId = typeof req.body?.courier_id === "string" ? req.body.courier_id.trim() : "";
@@ -448,6 +523,7 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
+        closed_at: null,
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),

@@ -3,6 +3,7 @@ import { useRoute } from "wouter";
 import { motion } from "framer-motion";
 import {
   AlertCircle,
+  Archive,
   Bike,
   Check,
   CheckCircle2,
@@ -48,6 +49,7 @@ interface TrackingOrder {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  closed_at?: string | null;
   items: TrackingItem[];
 }
 
@@ -284,6 +286,7 @@ export default function OrderTracking() {
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
+  const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -400,6 +403,12 @@ export default function OrderTracking() {
               <p className={cn("text-sm font-bold", isCanceled ? "text-red-600" : "text-gray-900")}>
                 {formatOrderStatus(order.status)}
               </p>
+              {closedAtLabel ? (
+                <p className="mt-1 inline-flex items-center justify-end gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  <Archive className="h-3.5 w-3.5" />
+                  Conferido
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-gray-400">
                 {refreshing
                   ? "Atualizando..."
@@ -694,6 +703,12 @@ export default function OrderTracking() {
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Observação da entrega</p>
                 <p className="mt-1 leading-relaxed">{courierDeliveryNote}</p>
+              </div>
+            ) : null}
+            {closedAtLabel ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Arquivado pela loja</p>
+                <p className="mt-1 leading-relaxed">Conferido em {closedAtLabel}.</p>
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (

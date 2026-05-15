@@ -690,6 +690,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
         courier_arrived_at: order.courier_arrived_at || new Date(),
         courier_delivered_at: new Date(),
         courier_delivery_note: deliveryNote,
+        closed_at: null,
       })
       .where(and(
         eq(ordersTable.id, order.id),

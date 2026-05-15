@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
 import { resolveStoreTypeFromProfile } from "@/lib/store-types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, ChefHat, Bike, CheckCircle2, AlertCircle, ShoppingBag, Printer, Phone, ChevronDown, ChevronUp, MapPin, CreditCard, Truck, Store } from "lucide-react";
+import { Clock, ChefHat, Bike, CheckCircle2, AlertCircle, ShoppingBag, Printer, Phone, ChevronDown, ChevronUp, MapPin, CreditCard, Truck, Store, Archive, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OrderItem {
@@ -41,6 +41,7 @@ interface Order {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  closed_at?: string | null;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -106,6 +107,8 @@ export default function DashboardOrdersKanban() {
   const storeType = resolveStoreTypeFromProfile(user);
   const isBookingStore = storeType === "manicure" || storeType === "salao";
   const isCourier = (user?.account_role ?? "merchant") === "courier";
+  const archivedOrders = orders.filter((order) => order.status === "entregue" && Boolean(order.closed_at));
+  const deliveredOrders = orders.filter((order) => order.status === "entregue" && !order.closed_at);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -178,6 +181,38 @@ export default function DashboardOrdersKanban() {
     }
   };
 
+  const archiveOrder = async (orderId: string) => {
+    setMovingId(orderId);
+    try {
+      await apiFetch(`/orders/${orderId}/archive`, {
+        method: "PUT",
+        ...opts,
+      });
+      success("Pedido arquivado");
+      loadOrders();
+    } catch (e: any) {
+      toastError(e.message || "Erro ao arquivar pedido");
+    } finally {
+      setMovingId(null);
+    }
+  };
+
+  const unarchiveOrder = async (orderId: string) => {
+    setMovingId(orderId);
+    try {
+      await apiFetch(`/orders/${orderId}/unarchive`, {
+        method: "PUT",
+        ...opts,
+      });
+      success("Pedido reaberto");
+      loadOrders();
+    } catch (e: any) {
+      toastError(e.message || "Erro ao reabrir pedido");
+    } finally {
+      setMovingId(null);
+    }
+  };
+
   const getNextStatus = (current: string) => {
     const idx = STATUSES.findIndex(s => s.id === current);
     if (idx >= 0 && idx < STATUSES.length - 1) return STATUSES[idx + 1].id;
@@ -215,7 +250,9 @@ export default function DashboardOrdersKanban() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 pb-4">
         {STATUSES.map((col) => {
-          const colOrders = orders.filter(o => o.status === col.id);
+          const colOrders = col.id === "entregue"
+            ? deliveredOrders
+            : orders.filter(o => o.status === col.id);
           const Icon = col.icon;
           
           return (
@@ -455,6 +492,20 @@ export default function DashboardOrdersKanban() {
                           >
                             <Printer className="w-4 h-4" />
                           </button>
+                          {order.status === "entregue" && (
+                            <button
+                              onClick={() => (order.closed_at ? unarchiveOrder(order.id) : archiveOrder(order.id))}
+                              className={cn(
+                                "px-3 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center",
+                                order.closed_at
+                                  ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                  : "bg-amber-50 hover:bg-amber-100 text-amber-700",
+                              )}
+                              title={order.closed_at ? "Reabrir pedido" : "Arquivar pedido"}
+                            >
+                              {order.closed_at ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                            </button>
+                          )}
                           {order.status !== "cancelado" && order.status !== "entregue" && (
                             <button
                               onClick={() => updateStatus(order.id, "cancelado")}
@@ -479,6 +530,42 @@ export default function DashboardOrdersKanban() {
           );
         })}
       </div>
+
+      {archivedOrders.length > 0 && (
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Arquivados</p>
+              <h2 className="text-lg font-black text-slate-900">Pedidos conferidos</h2>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+              {archivedOrders.length}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {archivedOrders.map((order) => (
+              <div key={order.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm">{order.customer_name}</p>
+                    <p className="text-xs text-slate-500">{formatPrice(order.total)}</p>
+                  </div>
+                  <button
+                    onClick={() => unarchiveOrder(order.id)}
+                    className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Reabrir
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Conferido em {order.closed_at ? new Date(order.closed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "-"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
 
     {/* Thermal Print Layout */}
