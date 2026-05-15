@@ -47,6 +47,7 @@ interface TrackingOrder {
   courier_pickup_at?: string | null;
   courier_on_route_at?: string | null;
   courier_eta_at?: string | null;
+  courier_eta_overdue_notified_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -292,6 +293,7 @@ export default function OrderTracking() {
   const courierOnRouteLabel = order?.courier_on_route_at ? formatDateTime(order.courier_on_route_at) : "";
   const courierEtaLabel = order?.courier_eta_at ? formatDateTime(order.courier_eta_at) : "";
   const courierEtaOverdue = Boolean(order?.courier_eta_at) && !["entregue", "cancelado"].includes(order?.status || "") && new Date(order?.courier_eta_at || "").getTime() < Date.now();
+  const courierEtaAlerted = Boolean(order?.courier_eta_overdue_notified_at);
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
@@ -712,6 +714,12 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Status</span>
                 <span className="text-right font-semibold text-red-700">Atrasado</span>
+              </div>
+            ) : null}
+            {courierEtaAlerted ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Alerta</span>
+                <span className="text-right font-semibold text-amber-700">Enviado</span>
               </div>
             ) : null}
             {courierArrivedLabel ? (

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db, usersTable, productsTable, ordersTable, couponsTable } from "@workspace/db";
-import { eq, and, desc, inArray, or, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, or, sql, isNull } from "drizzle-orm";
 import { parseBody, publicAvailabilitySchema, publicOrderSchema, validationError } from "../lib/validation.js";
 import {
   createMercadoPagoPixPayment,
@@ -55,6 +55,50 @@ function buildAddressLines(input: {
     input.city || input.state ? `Cidade/UF: ${[input.city, input.state].filter(Boolean).join(" / ")}` : "",
     input.reference ? `Referencia: ${input.reference}` : "",
   ].filter(Boolean);
+}
+
+function buildEtaOverdueMessages(storeName: string, courierName: string, etaLabel: string) {
+  return {
+    merchant: `O pedido na *${storeName}* passou da previsao de entrega (${etaLabel}). Entregador: ${courierName || "nao atribuido"}.`,
+    customer: `Seu pedido na *${storeName}* passou da previsao de entrega. A loja ja recebeu um alerta e vai acompanhar a entrega.`,
+    courier: `A entrega da loja *${storeName}* passou da previsao informada. Verifique a rota e atualize o ETA se necessario.`,
+  };
+}
+
+async function notifyEtaOverdueIfNeeded(order: typeof ordersTable.$inferSelect, storeName: string, courierInfo: { owner_name: string; whatsapp: string } | null, merchantWhatsapp?: string | null) {
+  const etaAt = order.courier_eta_at ? new Date(order.courier_eta_at) : null;
+  if (!etaAt || Number.isNaN(etaAt.getTime())) return order;
+  if (order.status === "entregue" || order.status === "cancelado") return order;
+  if (etaAt.getTime() > Date.now()) return order;
+  if (order.courier_eta_overdue_notified_at) return order;
+
+  const [updatedOrder] = await db
+    .update(ordersTable)
+    .set({ courier_eta_overdue_notified_at: new Date() })
+    .where(and(
+      eq(ordersTable.id, order.id),
+      eq(ordersTable.user_id, order.user_id),
+      isNull(ordersTable.courier_eta_overdue_notified_at),
+    ))
+    .returning();
+
+  if (!updatedOrder) return order;
+
+  const messages = buildEtaOverdueMessages(
+    storeName,
+    courierInfo?.owner_name || "nao atribuido",
+    etaAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+  );
+  const instanceName = `mostrara_store_${order.user_id}`;
+  if (merchantWhatsapp) {
+    void evolutionService.sendTextMessage(instanceName, merchantWhatsapp, messages.merchant).catch(() => undefined);
+  }
+  void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, messages.customer).catch(() => undefined);
+  if (courierInfo?.whatsapp) {
+    void evolutionService.sendTextMessage(instanceName, courierInfo.whatsapp, messages.courier).catch(() => undefined);
+  }
+
+  return updatedOrder;
 }
 
 function sumAppointmentDurationMinutes(items: Array<{ storage?: string; quantity: number }>) {
@@ -779,39 +823,42 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
       }
     }
 
+    const orderAfterEtaCheck = await notifyEtaOverdueIfNeeded(order, user.store_name, courierInfo, user.whatsapp);
+
     res.json({
       order: {
-        id: order.id,
-        customer_name: order.customer_name,
-        total: order.total,
-        status: order.status,
-        payment_method: order.payment_method,
-        payment_status: order.payment_status,
-        delivery_method: order.delivery_method,
-        courier_assignment_status: order.courier_assignment_status,
-        courier_assignment_updated_at: order.courier_assignment_updated_at,
-        courier_pickup_at: order.courier_pickup_at,
-        courier_on_route_at: order.courier_on_route_at,
-        courier_eta_at: order.courier_eta_at,
-        courier_arrived_at: order.courier_arrived_at,
-        courier_delivered_at: order.courier_delivered_at,
-        courier_delivery_note: order.courier_delivery_note,
-        closed_at: order.closed_at,
-        delivery_reopened_at: order.delivery_reopened_at,
-        delivery_reopen_note: order.delivery_reopen_note,
-        delivery_problem_at: order.delivery_problem_at,
-        delivery_problem_note: order.delivery_problem_note,
-        delivery_problem_resolved_at: order.delivery_problem_resolved_at,
-        delivery_problem_resolution_note: order.delivery_problem_resolution_note,
-        notes: order.notes,
-        appointment_date: order.appointment_date,
-        appointment_time: order.appointment_time,
-        appointment_end_time: order.appointment_end_time,
-        created_at: order.created_at,
+        id: orderAfterEtaCheck.id,
+        customer_name: orderAfterEtaCheck.customer_name,
+        total: orderAfterEtaCheck.total,
+        status: orderAfterEtaCheck.status,
+        payment_method: orderAfterEtaCheck.payment_method,
+        payment_status: orderAfterEtaCheck.payment_status,
+        delivery_method: orderAfterEtaCheck.delivery_method,
+        courier_assignment_status: orderAfterEtaCheck.courier_assignment_status,
+        courier_assignment_updated_at: orderAfterEtaCheck.courier_assignment_updated_at,
+        courier_pickup_at: orderAfterEtaCheck.courier_pickup_at,
+        courier_on_route_at: orderAfterEtaCheck.courier_on_route_at,
+        courier_eta_at: orderAfterEtaCheck.courier_eta_at,
+        courier_eta_overdue_notified_at: orderAfterEtaCheck.courier_eta_overdue_notified_at,
+        courier_arrived_at: orderAfterEtaCheck.courier_arrived_at,
+        courier_delivered_at: orderAfterEtaCheck.courier_delivered_at,
+        courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,
+        closed_at: orderAfterEtaCheck.closed_at,
+        delivery_reopened_at: orderAfterEtaCheck.delivery_reopened_at,
+        delivery_reopen_note: orderAfterEtaCheck.delivery_reopen_note,
+        delivery_problem_at: orderAfterEtaCheck.delivery_problem_at,
+        delivery_problem_note: orderAfterEtaCheck.delivery_problem_note,
+        delivery_problem_resolved_at: orderAfterEtaCheck.delivery_problem_resolved_at,
+        delivery_problem_resolution_note: orderAfterEtaCheck.delivery_problem_resolution_note,
+        notes: orderAfterEtaCheck.notes,
+        appointment_date: orderAfterEtaCheck.appointment_date,
+        appointment_time: orderAfterEtaCheck.appointment_time,
+        appointment_end_time: orderAfterEtaCheck.appointment_end_time,
+        created_at: orderAfterEtaCheck.created_at,
         assigned_courier_name: courierInfo?.owner_name || "",
         assigned_courier_whatsapp: courierInfo?.whatsapp || "",
         items: (() => {
-          try { return JSON.parse(order.items || "[]"); } catch { return []; }
+          try { return JSON.parse(orderAfterEtaCheck.items || "[]"); } catch { return []; }
         })(),
       },
       store: {

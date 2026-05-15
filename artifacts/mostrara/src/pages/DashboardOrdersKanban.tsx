@@ -39,6 +39,7 @@ interface Order {
   courier_pickup_at?: string | null;
   courier_on_route_at?: string | null;
   courier_eta_at?: string | null;
+  courier_eta_overdue_notified_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -507,6 +508,11 @@ export default function DashboardOrdersKanban() {
                             {isEtaOverdue(order) && (
                               <p className="mt-2 inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-red-700">
                                 Atrasado
+                              </p>
+                            )}
+                            {order.courier_eta_overdue_notified_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                                Alerta enviado
                               </p>
                             )}
                             {order.courier_arrived_at && (
