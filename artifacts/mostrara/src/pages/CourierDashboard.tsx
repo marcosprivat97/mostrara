@@ -28,7 +28,7 @@ interface CourierOrder {
   reference?: string;
   notes?: string;
   total: number;
-  status: string;
+  status: "saiu_entrega" | "em_rota" | "entregue" | string;
   created_at: string;
   assigned_courier_id?: string | null;
   items: CourierOrderItem[];
@@ -56,6 +56,7 @@ export default function CourierDashboard() {
   const [orders, setOrders] = useState<CourierOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [routeingId, setRouteingId] = useState<string | null>(null);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -96,8 +97,25 @@ export default function CourierDashboard() {
     }
   };
 
+  const markOnRoute = async (orderId: string) => {
+    setRouteingId(orderId);
+    try {
+      await apiFetch(`/couriers/orders/${orderId}/on-route`, {
+        method: "PUT",
+        ...opts,
+      });
+      success("Saida para entrega confirmada");
+      loadOrders();
+    } catch (err) {
+      error(err instanceof Error ? err.message : "Nao foi possivel marcar a saida");
+    } finally {
+      setRouteingId(null);
+    }
+  };
+
   const readyOrders = orders.filter((order) => order.status === "saiu_entrega");
-  const queuedOrders = orders.filter((order) => order.status !== "saiu_entrega" && order.status !== "entregue");
+  const onRouteOrders = orders.filter((order) => order.status === "em_rota");
+  const queuedOrders = orders.filter((order) => order.status !== "saiu_entrega" && order.status !== "em_rota" && order.status !== "entregue");
   const deliveredOrders = orders.filter((order) => order.status === "entregue");
 
   return (
@@ -135,6 +153,10 @@ export default function CourierDashboard() {
             <p className="text-3xl font-black mt-1">{queuedOrders.length}</p>
           </div>
           <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+            <p className="text-xs uppercase tracking-wider text-white/50">Em rota</p>
+            <p className="text-3xl font-black mt-1">{onRouteOrders.length}</p>
+          </div>
+          <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
             <p className="text-xs uppercase tracking-wider text-white/50">Entregues</p>
             <p className="text-3xl font-black mt-1">{deliveredOrders.length}</p>
           </div>
@@ -149,7 +171,7 @@ export default function CourierDashboard() {
           </div>
         )}
 
-        {!loading && readyOrders.length === 0 && queuedOrders.length === 0 && (
+        {!loading && readyOrders.length === 0 && onRouteOrders.length === 0 && queuedOrders.length === 0 && (
           <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-7 w-7" />
@@ -218,6 +240,19 @@ export default function CourierDashboard() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => markOnRoute(order.id)}
+                    disabled={routeingId === order.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-60 transition-colors"
+                  >
+                    {routeingId === order.id ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-700 border-t-transparent" />
+                    ) : (
+                      <Bike className="h-4 w-4" />
+                    )}
+                    Sair para entrega
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => markDelivered(order.id)}
                     disabled={updatingId === order.id}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-bold text-white hover:bg-black disabled:opacity-60 transition-colors"
@@ -266,6 +301,62 @@ export default function CourierDashboard() {
             </p>
           </div>
         )}
+
+        {onRouteOrders.map((order) => {
+          const address = formatAddress(order);
+          return (
+            <div key={order.id} className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-800">
+                      <Bike className="w-3.5 h-3.5" />
+                      Em rota
+                    </div>
+                    <span className="text-xs font-medium text-gray-400">
+                      {new Date(order.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-gray-900">{order.customer_name}</h2>
+                    <p className="text-sm text-gray-500">{formatPrice(order.total)}</p>
+                  </div>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    {address && (
+                      <p className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 text-gray-400" />
+                        <span>{address}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 lg:min-w-56">
+                  <button
+                    type="button"
+                    onClick={() => openWhatsApp(order.customer_whatsapp)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Falar com cliente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markDelivered(order.id)}
+                    disabled={updatingId === order.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 text-sm font-bold text-white hover:bg-black disabled:opacity-60 transition-colors"
+                  >
+                    {updatingId === order.id ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Confirmar entrega
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

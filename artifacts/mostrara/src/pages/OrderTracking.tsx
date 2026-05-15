@@ -31,7 +31,7 @@ interface TrackingOrder {
   id: string;
   customer_name: string;
   total: string | number;
-  status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "entregue" | "cancelado";
+  status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "em_rota" | "entregue" | "cancelado";
   payment_method: string;
   payment_status: string;
   delivery_method?: string;
@@ -66,6 +66,7 @@ const STEPS = [
   { id: "confirmado", label: "Aceito", icon: CheckCircle2 },
   { id: "preparando", label: "Preparando", icon: ChefHat },
   { id: "saiu_entrega", label: "Saiu para entrega", icon: Bike },
+  { id: "em_rota", label: "Em rota", icon: Bike },
   { id: "entregue", label: "Entregue", icon: Check },
 ] as const;
 

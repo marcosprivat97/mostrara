@@ -32,7 +32,7 @@ interface Order {
   total: number;
   discount?: number;
   delivery_fee?: number;
-  status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "entregue" | "cancelado";
+  status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "em_rota" | "entregue" | "cancelado";
   created_at: string;
   assigned_courier_id?: string | null;
   items: OrderItem[];
@@ -58,6 +58,7 @@ const STATUSES = [
   { id: "confirmado", label: "Aceitos", icon: CheckCircle2, color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { id: "preparando", label: "Preparando", icon: ChefHat, color: "bg-orange-500", light: "bg-orange-50 text-orange-700 border-orange-200" },
   { id: "saiu_entrega", label: "Saiu para entrega", icon: Bike, color: "bg-purple-500", light: "bg-purple-50 text-purple-700 border-purple-200" },
+  { id: "em_rota", label: "Em rota", icon: Bike, color: "bg-amber-500", light: "bg-amber-50 text-amber-700 border-amber-200" },
   { id: "entregue", label: "Entregues", icon: CheckCircle2, color: "bg-emerald-600", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 ] as const;
 

@@ -70,7 +70,7 @@ async function selectActiveMerchantCourier(merchantId: string): Promise<Merchant
   return (courier as MerchantCourier | undefined) ?? null;
 }
 
-function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string) {
+function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string, statusLabel = "Novo pedido atribuido para voce") {
   const items = parseItems(order.items)
     .map((item) => `${item.quantity}x ${item.name}`)
     .join(", ");
@@ -83,7 +83,7 @@ function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, s
   ].join("").trim();
 
   return [
-    `Novo pedido atribuido para voce na loja ${storeName}.`,
+    `${statusLabel} na loja ${storeName}.`,
     `Cliente: ${order.customer_name}`,
     address ? `Endereco: ${address}` : "",
     order.reference ? `Referencia: ${order.reference}` : "",
@@ -96,7 +96,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
     const filters = [eq(ordersTable.user_id, req.userId!)];
-    if (status && ["pendente", "confirmado", "preparando", "saiu_entrega", "entregue", "cancelado"].includes(status)) {
+    if (status && ["pendente", "confirmado", "preparando", "saiu_entrega", "em_rota", "entregue", "cancelado"].includes(status)) {
       filters.push(eq(ordersTable.status, status));
     }
 
@@ -220,7 +220,7 @@ router.post("/:id/cancel", async (req: AuthRequest, res: Response) => {
 router.put("/:id/status", async (req: AuthRequest, res: Response) => {
   try {
     const { status } = req.body;
-    const validStatuses = ["pendente", "confirmado", "preparando", "saiu_entrega", "entregue", "cancelado"];
+    const validStatuses = ["pendente", "confirmado", "preparando", "saiu_entrega", "em_rota", "entregue", "cancelado"];
     
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: "Status invalido" });
@@ -317,10 +317,12 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         }
       } else if (status === "saiu_entrega") {
         if (isDelivery) {
-          message = `Seu pedido na *${storeName}* saiu para entrega e deve chegar em breve. Fique atento ao WhatsApp.`;
+          message = `Seu pedido na *${storeName}* foi liberado para a entrega e o entregador ja foi acionado.`;
         } else {
           message = `Seu pedido na *${storeName}* ja esta pronto para retirada.`;
         }
+      } else if (status === "em_rota") {
+        message = `Seu pedido na *${storeName}* saiu para entrega e ja esta a caminho. Fique atento ao WhatsApp.`;
       } else if (status === "entregue") {
         message = `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
       } else if (status === "cancelado") {
@@ -334,7 +336,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         });
       }
 
-      if (status === "saiu_entrega") {
+      if (status === "saiu_entrega" || status === "em_rota") {
         const courierTarget = assignedCourier || (assignedCourierId
           ? await db
               .select({
@@ -355,10 +357,14 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
           : null);
 
         if (courierTarget?.whatsapp) {
-          const courierMessage = buildCourierAssignmentMessage(updatedOrder, storeName);
+          const courierMessage = buildCourierAssignmentMessage(
+            updatedOrder,
+            storeName,
+            status === "em_rota" ? "Seu pedido saiu para entrega" : "Novo pedido atribuido para voce",
+          );
           const instanceName = `mostrara_store_${req.userId}`;
           void evolutionService.sendTextMessage(instanceName, courierTarget.whatsapp, courierMessage).catch((err) => {
-            req.log.warn({ err }, "Failed to send courier assignment WhatsApp message");
+            req.log.warn({ err }, "Failed to send courier status WhatsApp message");
           });
         }
       }

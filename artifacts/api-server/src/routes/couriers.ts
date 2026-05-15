@@ -82,6 +82,13 @@ function formatOrder(order: typeof ordersTable.$inferSelect) {
   };
 }
 
+function buildCourierCustomerMessage(storeName: string, status: "em_rota" | "entregue") {
+  if (status === "em_rota") {
+    return `Seu pedido na *${storeName}* saiu para entrega e ja esta a caminho. Fique atento ao WhatsApp.`;
+  }
+  return `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -178,6 +185,60 @@ router.post("/", async (req: AuthRequest, res) => {
   }
 });
 
+router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "saiu_entrega") {
+      res.status(400).json({ error: "Este pedido ainda nao pode sair para entrega" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({ status: "em_rota" })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const customerMessage = buildCourierCustomerMessage(merchant?.store_name || "nossa loja", "em_rota");
+    void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, customerMessage).catch(() => undefined);
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierOnRoute error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.get("/orders", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -225,7 +286,8 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
       return;
     }
 
-    if (order.status !== "saiu_entrega") {
+    const currentStatus = String(order.status || "");
+    if (!["saiu_entrega", "em_rota"].includes(currentStatus)) {
       res.status(400).json({ error: "Este pedido ainda nao saiu para entrega" });
       return;
     }
@@ -240,7 +302,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
       ))
       .returning();
 
-    const customerMessage = `Seu pedido na *${currentUser.store_name.replace(" - Entregador", "")}* foi entregue com sucesso. Obrigado pela preferencia!`;
+    const customerMessage = buildCourierCustomerMessage(currentUser.store_name.replace(" - Entregador", ""), "entregue");
     void evolutionService.sendTextMessage(`mostrara_store_${currentUser.parent_user_id}`, order.customer_whatsapp, customerMessage).catch(() => undefined);
 
     res.json({ order: formatOrder(updatedOrder) });
