@@ -758,6 +758,27 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
       return;
     }
 
+    let courierInfo: { owner_name: string; whatsapp: string } | null = null;
+    if (order.assigned_courier_id) {
+      const [courier] = await db
+        .select({
+          owner_name: usersTable.owner_name,
+          whatsapp: usersTable.whatsapp,
+        })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.id, order.assigned_courier_id),
+          eq(usersTable.account_role, "courier"),
+        ))
+        .limit(1);
+      if (courier) {
+        courierInfo = {
+          owner_name: courier.owner_name,
+          whatsapp: courier.whatsapp,
+        };
+      }
+    }
+
     res.json({
       order: {
         id: order.id,
@@ -772,6 +793,8 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         appointment_time: order.appointment_time,
         appointment_end_time: order.appointment_end_time,
         created_at: order.created_at,
+        assigned_courier_name: courierInfo?.owner_name || "",
+        assigned_courier_whatsapp: courierInfo?.whatsapp || "",
         items: (() => {
           try { return JSON.parse(order.items || "[]"); } catch { return []; }
         })(),

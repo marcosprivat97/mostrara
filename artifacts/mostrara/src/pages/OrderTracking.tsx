@@ -40,6 +40,8 @@ interface TrackingOrder {
   appointment_end_time?: string;
   created_at: string;
   notes?: string;
+  assigned_courier_name?: string;
+  assigned_courier_whatsapp?: string;
   items: TrackingItem[];
 }
 
@@ -250,10 +252,18 @@ export default function OrderTracking() {
     return `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
   }, [order, publicOrderId, store?.whatsapp]);
 
+  const courierWhatsappLink = useMemo(() => {
+    if (!order?.assigned_courier_whatsapp || !order) return "#";
+    const phone = order.assigned_courier_whatsapp.replace(/\D/g, "");
+    const message = `Ola! Gostaria de falar sobre o pedido #${publicOrderId}.`;
+    return `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
+  }, [order, publicOrderId]);
+
   const paymentStatusSource = String(payment?.status || order?.payment_status || "pending").toLowerCase();
   const paymentStatusLabel = PAYMENT_STATUS_LABELS[paymentStatusSource] || paymentStatusSource;
   const paymentMethod = PAYMENT_METHOD_LABELS[order?.payment_method || ""] || order?.payment_method || "";
   const deliveryMethod = DELIVERY_METHOD_LABELS[order?.delivery_method || "delivery"] || "Entrega";
+  const courierLabel = order?.assigned_courier_name || "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -615,6 +625,25 @@ export default function OrderTracking() {
               <span>Entrega</span>
               <span className="text-right font-medium text-gray-900">{deliveryMethod}</span>
             </div>
+            {courierLabel ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Entregador</span>
+                <span className="text-right font-medium text-gray-900">{courierLabel}</span>
+              </div>
+            ) : null}
+            {order?.assigned_courier_whatsapp ? (
+              <div className="flex justify-end">
+                <a
+                  href={courierWhatsappLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Falar com entregador
+                </a>
+              </div>
+            ) : null}
             {appointmentLabel ? (
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Agendamento</span>

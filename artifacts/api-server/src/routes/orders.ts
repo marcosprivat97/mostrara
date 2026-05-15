@@ -43,6 +43,55 @@ function formatOrder(order: typeof ordersTable.$inferSelect) {
   };
 }
 
+type MerchantCourier = {
+  id: string;
+  owner_name: string;
+  whatsapp: string;
+  store_name: string;
+};
+
+async function selectActiveMerchantCourier(merchantId: string): Promise<MerchantCourier | null> {
+  const [courier] = await db
+    .select({
+      id: usersTable.id,
+      owner_name: usersTable.owner_name,
+      whatsapp: usersTable.whatsapp,
+      store_name: usersTable.store_name,
+    })
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.parent_user_id, merchantId),
+      eq(usersTable.account_role, "courier"),
+      eq(usersTable.active, true),
+    ))
+    .orderBy(desc(usersTable.created_at))
+    .limit(1);
+
+  return (courier as MerchantCourier | undefined) ?? null;
+}
+
+function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string) {
+  const items = parseItems(order.items)
+    .map((item) => `${item.quantity}x ${item.name}`)
+    .join(", ");
+  const address = [
+    order.street,
+    order.number ? `, ${order.number}` : "",
+    order.neighborhood ? ` - ${order.neighborhood}` : "",
+    order.city ? `, ${order.city}` : "",
+    order.state ? ` / ${order.state}` : "",
+  ].join("").trim();
+
+  return [
+    `Novo pedido atribuido para voce na loja ${storeName}.`,
+    `Cliente: ${order.customer_name}`,
+    address ? `Endereco: ${address}` : "",
+    order.reference ? `Referencia: ${order.reference}` : "",
+    items ? `Itens: ${items}` : "",
+    order.notes ? `Obs: ${order.notes}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
@@ -191,6 +240,13 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    let assignedCourierId = currentOrder.assigned_courier_id || null;
+    let assignedCourier: MerchantCourier | null = null;
+    if (status === "saiu_entrega" && !assignedCourierId) {
+      assignedCourier = await selectActiveMerchantCourier(req.userId!);
+      assignedCourierId = assignedCourier?.id || null;
+    }
+
     const [updatedOrder] = await db
       .update(ordersTable)
       .set({
@@ -198,6 +254,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "confirmado" ? { confirmed_at: new Date() } : {}),
         ...(status === "entregue" ? { confirmed_at: currentOrder.confirmed_at || new Date() } : {}),
         ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
+        ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
@@ -276,6 +333,35 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
           req.log.warn({ err }, "Failed to send status update WhatsApp message");
         });
       }
+
+      if (status === "saiu_entrega") {
+        const courierTarget = assignedCourier || (assignedCourierId
+          ? await db
+              .select({
+                id: usersTable.id,
+                owner_name: usersTable.owner_name,
+                whatsapp: usersTable.whatsapp,
+                store_name: usersTable.store_name,
+              })
+              .from(usersTable)
+              .where(eq(usersTable.id, assignedCourierId))
+              .limit(1)
+              .then(([row]) => row ? {
+                id: row.id,
+                owner_name: row.owner_name,
+                whatsapp: row.whatsapp,
+                store_name: row.store_name,
+              } : null)
+          : null);
+
+        if (courierTarget?.whatsapp) {
+          const courierMessage = buildCourierAssignmentMessage(updatedOrder, storeName);
+          const instanceName = `mostrara_store_${req.userId}`;
+          void evolutionService.sendTextMessage(instanceName, courierTarget.whatsapp, courierMessage).catch((err) => {
+            req.log.warn({ err }, "Failed to send courier assignment WhatsApp message");
+          });
+        }
+      }
     }
 
     res.json({ order: formatOrder(updatedOrder) });
@@ -341,6 +427,32 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         eq(ordersTable.user_id, req.userId!),
       ))
       .returning();
+
+    if (courierId && currentOrder.status === "saiu_entrega") {
+      const [merchant] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, req.userId!))
+        .limit(1);
+      const [courier] = await db
+        .select({
+          id: usersTable.id,
+          owner_name: usersTable.owner_name,
+          whatsapp: usersTable.whatsapp,
+          store_name: usersTable.store_name,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, courierId))
+        .limit(1);
+
+      if (courier?.whatsapp) {
+        const courierMessage = buildCourierAssignmentMessage(updatedOrder, merchant?.store_name || "nossa loja");
+        const instanceName = `mostrara_store_${req.userId}`;
+        void evolutionService.sendTextMessage(instanceName, courier.whatsapp, courierMessage).catch((err) => {
+          req.log.warn({ err }, "Failed to notify assigned courier");
+        });
+      }
+    }
 
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
