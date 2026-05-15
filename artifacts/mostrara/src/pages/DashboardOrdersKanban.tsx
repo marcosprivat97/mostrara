@@ -40,6 +40,7 @@ interface Order {
   courier_on_route_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
+  courier_delivery_note?: string;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -420,6 +421,11 @@ export default function DashboardOrdersKanban() {
                             {order.courier_delivered_at && (
                               <p className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                                 Entregue {new Date(order.courier_delivered_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
+                            )}
+                            {order.courier_delivery_note && (
+                              <p className="mt-2 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs leading-relaxed text-gray-600">
+                                {order.courier_delivery_note}
                               </p>
                             )}
                           </div>

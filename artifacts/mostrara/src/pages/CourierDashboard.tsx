@@ -37,6 +37,7 @@ interface CourierOrder {
   courier_on_route_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
+  courier_delivery_note?: string;
   items: CourierOrderItem[];
 }
 
@@ -63,6 +64,7 @@ export default function CourierDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [routeingId, setRouteingId] = useState<string | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({});
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -93,6 +95,7 @@ export default function CourierDashboard() {
       await apiFetch(`/couriers/orders/${orderId}/delivered`, {
         method: "PUT",
         ...opts,
+        body: JSON.stringify({ note: deliveryNotes[orderId] || "" }),
       });
       success("Entrega confirmada");
       loadOrders();
@@ -570,6 +573,7 @@ export default function CourierDashboard() {
                       </p>
                     )}
                     {order.courier_arrived_at && <p className="text-xs text-orange-700">Chegou {new Date(order.courier_arrived_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
+                    {order.courier_delivery_note && <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">{order.courier_delivery_note}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 lg:min-w-56">
@@ -594,6 +598,13 @@ export default function CourierDashboard() {
                     )}
                     Marcar chegada
                   </button>
+                  <textarea
+                    value={deliveryNotes[order.id] || ""}
+                    onChange={(event) => setDeliveryNotes((current) => ({ ...current, [order.id]: event.target.value }))}
+                    placeholder="Observação da entrega"
+                    rows={3}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10"
+                  />
                   <button
                     type="button"
                     onClick={() => markDelivered(order.id)}

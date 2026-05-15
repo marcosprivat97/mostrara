@@ -261,7 +261,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
         ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
         ...(status === "saiu_entrega"
-          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_arrived_at: null, courier_delivered_at: null }
+          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "" }
           : {}),
         ...(status === "em_rota" && assignedCourierId
           ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date() }
@@ -447,6 +447,7 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         courier_on_route_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
+        courier_delivery_note: "",
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),

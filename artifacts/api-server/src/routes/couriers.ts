@@ -147,6 +147,11 @@ function buildArrivalMessages(storeName: string, courierName: string) {
   };
 }
 
+function normalizeNote(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 500);
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -483,6 +488,7 @@ router.put("/orders/:id/accept", async (req: AuthRequest, res) => {
         courier_on_route_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
+        courier_delivery_note: "",
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -554,6 +560,7 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
         courier_on_route_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
+        courier_delivery_note: "",
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -587,6 +594,7 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
           courier_on_route_at: null,
           courier_arrived_at: null,
           courier_delivered_at: null,
+          courier_delivery_note: "",
         })
         .where(and(
           eq(ordersTable.id, declinedOrder.id),
@@ -672,6 +680,8 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
       return;
     }
 
+    const deliveryNote = normalizeNote(req.body?.note);
+
     const [updatedOrder] = await db
       .update(ordersTable)
       .set({
@@ -679,6 +689,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
         confirmed_at: order.confirmed_at || new Date(),
         courier_arrived_at: order.courier_arrived_at || new Date(),
         courier_delivered_at: new Date(),
+        courier_delivery_note: deliveryNote,
       })
       .where(and(
         eq(ordersTable.id, order.id),

@@ -18,6 +18,7 @@ export const ordersTable = pgTable("orders", {
   courier_on_route_at: timestamp("courier_on_route_at"),
   courier_arrived_at: timestamp("courier_arrived_at"),
   courier_delivered_at: timestamp("courier_delivered_at"),
+  courier_delivery_note: text("courier_delivery_note").default(""),
   cep: text("cep").default(""),
   street: text("street").default(""),
   number: text("number").default(""),

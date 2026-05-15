@@ -47,6 +47,7 @@ interface TrackingOrder {
   courier_on_route_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
+  courier_delivery_note?: string;
   items: TrackingItem[];
 }
 
@@ -282,6 +283,7 @@ export default function OrderTracking() {
   const courierOnRouteLabel = order?.courier_on_route_at ? formatDateTime(order.courier_on_route_at) : "";
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
+  const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -686,6 +688,12 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Entregue</span>
                 <span className="text-right font-medium text-emerald-700">{courierDeliveredLabel}</span>
+              </div>
+            ) : null}
+            {courierDeliveryNote ? (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Observação da entrega</p>
+                <p className="mt-1 leading-relaxed">{courierDeliveryNote}</p>
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (
