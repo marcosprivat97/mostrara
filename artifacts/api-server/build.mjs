@@ -137,6 +137,7 @@ try {
   await runMigration("migrate_phase13.mjs", "fase 13");
   await runMigration("migrate_phase14.mjs", "fase 14");
   await runMigration("migrate_phase15.mjs", "fase 15");
+  await runMigration("migrate_phase16.mjs", "fase 16");
   await buildAll();
 } catch (err) {
   console.error(err);

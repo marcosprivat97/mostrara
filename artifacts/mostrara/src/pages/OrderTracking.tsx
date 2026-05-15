@@ -46,6 +46,7 @@ interface TrackingOrder {
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_pickup_at?: string | null;
   courier_on_route_at?: string | null;
+  courier_eta_at?: string | null;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -289,6 +290,7 @@ export default function OrderTracking() {
         : "";
   const courierPickupLabel = order?.courier_pickup_at ? formatDateTime(order.courier_pickup_at) : "";
   const courierOnRouteLabel = order?.courier_on_route_at ? formatDateTime(order.courier_on_route_at) : "";
+  const courierEtaLabel = order?.courier_eta_at ? formatDateTime(order.courier_eta_at) : "";
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
@@ -697,6 +699,12 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Saiu para entrega</span>
                 <span className="text-right font-medium text-amber-700">{courierOnRouteLabel}</span>
+              </div>
+            ) : null}
+            {courierEtaLabel ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>ETA</span>
+                <span className="text-right font-medium text-amber-700">{courierEtaLabel}</span>
               </div>
             ) : null}
             {courierArrivedLabel ? (

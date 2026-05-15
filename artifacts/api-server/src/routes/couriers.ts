@@ -152,6 +152,13 @@ function normalizeNote(value: unknown) {
   return value.trim().slice(0, 500);
 }
 
+function normalizeEtaMinutes(value: unknown) {
+  const minutes = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(minutes)) return null;
+  if (minutes < 5 || minutes > 240) return null;
+  return minutes;
+}
+
 function buildDeliveryProblemMessages(storeName: string, courierName: string, note: string) {
   const baseNote = note || "Foi identificado um problema na entrega.";
   return {
@@ -294,6 +301,8 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
       .where(eq(usersTable.id, currentUser.parent_user_id))
       .limit(1);
 
+    const etaMinutes = normalizeEtaMinutes(req.body?.eta_minutes);
+
     const [updatedOrder] = await db
       .update(ordersTable)
       .set({
@@ -301,6 +310,7 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
         courier_assignment_status: "accepted" as CourierAssignmentStatus,
         courier_assignment_updated_at: new Date(),
         courier_on_route_at: new Date(),
+        courier_eta_at: etaMinutes ? new Date(Date.now() + etaMinutes * 60_000) : order.courier_eta_at,
       })
       .where(and(
         eq(ordersTable.id, order.id),

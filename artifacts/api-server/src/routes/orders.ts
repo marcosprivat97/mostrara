@@ -326,10 +326,10 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "entregue"
           ? { courier_arrived_at: currentOrder.courier_arrived_at || new Date() }
           : {}),
-        ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
+        ...(status === "cancelado" ? { canceled_at: new Date(), courier_eta_at: null } : {}),
         ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
         ...(status === "saiu_entrega"
-          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
+          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_eta_at: null, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
         ...(status === "em_rota" && assignedCourierId
           ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date(), delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
@@ -566,6 +566,7 @@ router.put("/:id/reopen-delivery", async (req: AuthRequest, res: Response) => {
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
         courier_on_route_at: null,
+        courier_eta_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
@@ -651,6 +652,7 @@ router.put("/:id/resolve-problem", async (req: AuthRequest, res: Response) => {
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
         courier_on_route_at: null,
+        courier_eta_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
@@ -754,6 +756,7 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
         courier_on_route_at: null,
+        courier_eta_at: null,
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
