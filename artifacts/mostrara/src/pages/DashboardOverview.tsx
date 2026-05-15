@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Package, Copy, ExternalLink, TrendingUp, ArrowRight, Plus, Zap, CircleHelp } from "lucide-react";
+import { Package, Copy, ExternalLink, TrendingUp, ArrowRight, Plus, Zap, CircleHelp, Link2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
@@ -225,8 +225,12 @@ export default function DashboardOverview() {
             Compartilhe o link da sua loja em grupos, Instagram e status do WhatsApp.
           </p>
           {storeUrl && (
-            <div className="bg-white/[0.07] rounded-xl p-3 mb-4 border border-white/10">
-              <p className="text-gray-300 text-xs font-mono truncate">{storeUrl}</p>
+            <div className="bg-white/[0.07] rounded-xl p-3 mb-4 border border-white/10 flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-gray-200 text-sm font-semibold truncate">Cardapio publico ativo</p>
+                <p className="text-gray-400 text-xs truncate">Link pronto para compartilhar</p>
+              </div>
             </div>
           )}
           <div className="flex gap-2">
@@ -245,7 +249,7 @@ export default function DashboardOverview() {
                 className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
-                Abrir
+                Abrir vitrine
               </a>
             )}
           </div>

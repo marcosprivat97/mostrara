@@ -83,7 +83,10 @@ export default function DashboardStore() {
 
           <div className="bg-white/[0.07] rounded-xl p-3 mb-4 border border-white/10 flex items-center gap-2">
             <Link2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <p className="text-gray-300 text-sm font-mono truncate flex-1">{storeUrl}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-gray-200 text-sm font-semibold truncate">Cardapio publico pronto</p>
+              <p className="text-gray-400 text-xs truncate">{user?.store_name || "Sua loja"} ativa na vitrine</p>
+            </div>
           </div>
 
           <div className="flex gap-3">

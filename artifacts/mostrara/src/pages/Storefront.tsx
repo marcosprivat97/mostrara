@@ -1901,7 +1901,8 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
   const { addItem, totalItems } = useCart();
   const [, navigate] = useLocation();
   const visibleProducts = products.filter(isProductAvailable);
-  const { labels } = getStoreExperience(store?.store_type ?? store?.canonical_niche);
+  const currentStoreType = store?.store_type ?? store?.canonical_niche ?? undefined;
+  const { storeConfig, labels } = getStoreExperience(currentStoreType);
 
   useEffect(() => {
     apiFetch<{ store: StoreData; products: Product[] }>(`/store/${encodeURIComponent(storeSlug)}`)
@@ -1979,56 +1980,57 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
       }}
     >
       {/* ── Premium Header ── */}
-      <header className="relative overflow-hidden">
+      <header className="relative overflow-hidden pb-4">
         {/* Cover */}
-        <div className="relative h-44 sm:h-56">
+        <div className="relative h-52 sm:h-64">
           {store?.cover_url ? (
             <img src={store.cover_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900" />
+            <div className="w-full h-full bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-black/70" />
           <button onClick={() => setInfoOpen(true)} className="absolute top-4 right-4 backdrop-blur-md bg-white/15 hover:bg-white/25 text-white p-2.5 rounded-xl transition-colors border border-white/10">
             <MapPin className="w-4 h-4" />
           </button>
         </div>
 
         {/* Store info card overlapping cover */}
-        <div className="relative -mt-16 mx-4 sm:mx-auto sm:max-w-2xl">
-          <div className="bg-white rounded-2xl shadow-xl shadow-black/5 border border-gray-100 p-5 flex items-center gap-4">
+        <div className="relative -mt-20 mx-4 sm:mx-auto sm:max-w-5xl">
+          <div className="bg-white/96 backdrop-blur-xl rounded-[1.75rem] shadow-[0_24px_80px_rgba(0,0,0,0.12)] border border-white/70 p-5 sm:p-6">
             <div className="flex-shrink-0">
               {store?.logo_url ? (
-                <img src={store.logo_url} alt={store.store_name || ''} className="w-[72px] h-[72px] rounded-2xl object-cover ring-[3px] ring-white shadow-lg" />
+                <img src={store.logo_url} alt={store.store_name || ''} className="w-[76px] h-[76px] rounded-[1.5rem] object-cover ring-[4px] ring-white shadow-lg" />
               ) : (
-                <div className="w-[72px] h-[72px] rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg">
+                <div className="w-[76px] h-[76px] rounded-[1.5rem] bg-gradient-to-br from-[var(--store-primary)] to-[var(--store-secondary)] flex items-center justify-center shadow-lg">
                   <Store className="w-8 h-8 text-white" />
                 </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-extrabold text-gray-900 truncate">{store?.store_name || ''}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-950 truncate">{store?.store_name || ''}</h1>
                 {store?.verified_badge && <BadgeCheck className="w-5 h-5 text-blue-500 flex-shrink-0" />}
               </div>
-              <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{store?.description || store?.city || 'Catálogo digital'}</p>
-              <div className="flex items-center gap-3 mt-2">
+              <p className="text-sm sm:text-base text-gray-600 mt-1.5 line-clamp-2 max-w-3xl">{store?.description || store?.city || 'Catalogo digital'}</p>
+              <div className="flex flex-wrap items-center gap-2 mt-4">
                 {store?.is_open === false ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 px-3 py-1.5 rounded-full">
                     <span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> Fechada
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Aberta
                   </span>
                 )}
-                {store?.city && <span className="text-xs text-gray-400">{store.city}{store.state ? ` / ${store.state}` : ''}</span>}
+                {store?.city && <span className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full"><MapPin className="w-3.5 h-3.5" />{store.city}{store.state ? ` / ${store.state}` : ''}</span>}
+                <span className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full"><Truck className="w-3.5 h-3.5" />{storeConfig.mode === "food" ? "Entrega local" : storeConfig.mode === "booking" ? "Atendimento agendado" : "Frete e retirada"}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Search + Category pills */}
-        <div className="mt-4 px-4 sm:px-0 sm:max-w-2xl sm:mx-auto space-y-3 pb-4">
+        <div className="mt-4 px-4 sm:px-0 sm:max-w-5xl sm:mx-auto space-y-3 pb-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2037,7 +2039,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
               placeholder={labels.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10 transition-all"
+              className="w-full pl-10 pr-4 py-3 bg-white/95 backdrop-blur-xl border border-white/70 rounded-2xl text-sm placeholder-gray-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10 transition-all shadow-lg shadow-black/5"
             />
           </div>
           {/* Category pills */}
@@ -2047,10 +2049,10 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
                 className={cn(
-                  "flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+                  "flex-shrink-0 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border shadow-sm",
                   categoryFilter === cat
-                    ? "bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-900/20"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    ? "bg-gray-950 text-white border-gray-950 shadow-md shadow-gray-900/20"
+                    : "bg-white/90 text-gray-600 border-white/70 hover:border-gray-300 hover:bg-gray-50"
                 )}
               >
                 {cat}
@@ -2107,7 +2109,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
                 key={p.id}
                 product={p}
                 isOpen={store?.is_open !== false}
-                storeType={store?.store_type ?? store?.canonical_niche}
+                storeType={currentStoreType}
                 onClick={() => setSelectedProduct(p)}
               />
             ))}
@@ -2178,7 +2180,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
         open={!!selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={(p, options) => addItem(p, options)}
-        storeType={store?.store_type ?? store?.canonical_niche}
+        storeType={currentStoreType}
         isOpen={store?.is_open !== false}
       />
 
@@ -2228,7 +2230,7 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
           isOpen={store.is_open !== false}
           deliveryFeeType={store.delivery_fee_type || "none"}
           deliveryFeeAmount={store.delivery_fee_amount || 0}
-          storeType={store.store_type ?? store.canonical_niche}
+          storeType={currentStoreType}
           onOrderCreated={rememberOrder}
         />
       )}
