@@ -45,6 +45,7 @@ interface Order {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  courier_delivery_photo_url?: string;
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
@@ -542,6 +543,12 @@ export default function DashboardOrdersKanban() {
                               <p className="mt-2 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs leading-relaxed text-gray-600">
                                 {order.courier_delivery_note}
                               </p>
+                            )}
+                            {order.courier_delivery_photo_url && (
+                              <div className="mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                                <p className="px-3 pt-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">Foto da entrega</p>
+                                <img src={order.courier_delivery_photo_url} alt="Foto da entrega" className="mt-2 h-32 w-full object-cover" />
+                              </div>
                             )}
                             {order.delivery_problem_at && (
                               <p className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">

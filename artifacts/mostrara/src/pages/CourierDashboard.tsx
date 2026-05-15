@@ -39,6 +39,7 @@ interface CourierOrder {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  courier_delivery_photo_url?: string;
   delivery_confirmation_code?: string;
   delivery_problem_at?: string | null;
   delivery_problem_note?: string;
@@ -72,6 +73,7 @@ export default function CourierDashboard() {
   const [routeingId, setRouteingId] = useState<string | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({});
   const [deliveryCodes, setDeliveryCodes] = useState<Record<string, string>>({});
+  const [deliveryPhotos, setDeliveryPhotos] = useState<Record<string, string>>({});
   const [problemNotes, setProblemNotes] = useState<Record<string, string>>({});
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
@@ -103,7 +105,7 @@ export default function CourierDashboard() {
       await apiFetch(`/couriers/orders/${orderId}/delivered`, {
         method: "PUT",
         ...opts,
-        body: JSON.stringify({ note: deliveryNotes[orderId] || "", delivery_code: deliveryCodes[orderId] || "" }),
+        body: JSON.stringify({ note: deliveryNotes[orderId] || "", delivery_code: deliveryCodes[orderId] || "", photo: deliveryPhotos[orderId] || "" }),
       });
       success("Entrega confirmada");
       loadOrders();
@@ -112,6 +114,18 @@ export default function CourierDashboard() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handleDeliveryPhoto = async (orderId: string, file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (result) {
+        setDeliveryPhotos((current) => ({ ...current, [orderId]: result }));
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const reportProblem = async (orderId: string) => {
@@ -691,6 +705,13 @@ export default function CourierDashboard() {
                     maxLength={6}
                     className="w-full rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
                   />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) => void handleDeliveryPhoto(order.id, event.target.files?.[0] || null)}
+                    className="w-full text-xs text-gray-500 file:mr-3 file:rounded-full file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:text-xs file:font-bold file:text-sky-700 hover:file:bg-sky-100"
+                  />
                   <textarea
                     value={deliveryNotes[order.id] || ""}
                     onChange={(event) => setDeliveryNotes((current) => ({ ...current, [order.id]: event.target.value }))}
@@ -767,6 +788,13 @@ export default function CourierDashboard() {
                     inputMode="numeric"
                     maxLength={6}
                     className="w-full rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) => void handleDeliveryPhoto(order.id, event.target.files?.[0] || null)}
+                    className="w-full text-xs text-gray-500 file:mr-3 file:rounded-full file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:text-xs file:font-bold file:text-sky-700 hover:file:bg-sky-100"
                   />
                   <button
                     type="button"

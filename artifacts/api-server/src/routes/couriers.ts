@@ -5,6 +5,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { db, ordersTable, usersTable } from "@workspace/db";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { evolutionService } from "../lib/evolution.js";
+import { uploadImageToCloudinary } from "../lib/cloudinary.js";
 import { normalizeDeliveryConfirmationCode } from "../lib/delivery-code.js";
 
 const router = Router();
@@ -151,6 +152,16 @@ function buildArrivalMessages(storeName: string, courierName: string) {
 function normalizeNote(value: unknown) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, 500);
+}
+
+async function uploadDeliveryPhoto(image: unknown, userId: string) {
+  if (typeof image !== "string" || !image.trim()) return "";
+  if (image.startsWith("https://")) return image.trim();
+  if (!image.startsWith("data:")) return "";
+
+  const mimeMatch = image.match(/^data:([^;]+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  return (await uploadImageToCloudinary(image, mimeType, `mostrara/delivery/${userId}`)) || "";
 }
 
 function normalizeEtaMinutes(value: unknown) {
@@ -783,6 +794,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
     }
 
     const deliveryNote = normalizeNote(req.body?.note);
+    const deliveryPhotoUrl = await uploadDeliveryPhoto(req.body?.photo || req.body?.image, currentUser.parent_user_id);
 
     const [updatedOrder] = await db
       .update(ordersTable)
@@ -792,6 +804,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
         courier_arrived_at: order.courier_arrived_at || new Date(),
         courier_delivered_at: new Date(),
         courier_delivery_note: deliveryNote,
+        courier_delivery_photo_url: deliveryPhotoUrl,
         closed_at: null,
         delivery_problem_at: null,
         delivery_problem_note: "",

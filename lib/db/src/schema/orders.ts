@@ -23,6 +23,7 @@ export const ordersTable = pgTable("orders", {
   courier_arrived_at: timestamp("courier_arrived_at"),
   courier_delivered_at: timestamp("courier_delivered_at"),
   courier_delivery_note: text("courier_delivery_note").default(""),
+  courier_delivery_photo_url: text("courier_delivery_photo_url").default(""),
   closed_at: timestamp("closed_at"),
   delivery_reopened_at: timestamp("delivery_reopened_at"),
   delivery_reopen_note: text("delivery_reopen_note").default(""),

@@ -859,6 +859,7 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_arrived_at: orderAfterEtaCheck.courier_arrived_at,
         courier_delivered_at: orderAfterEtaCheck.courier_delivered_at,
         courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,
+        courier_delivery_photo_url: orderAfterEtaCheck.courier_delivery_photo_url,
         closed_at: orderAfterEtaCheck.closed_at,
         delivery_reopened_at: orderAfterEtaCheck.delivery_reopened_at,
         delivery_reopen_note: orderAfterEtaCheck.delivery_reopen_note,

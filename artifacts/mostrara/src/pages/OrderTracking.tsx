@@ -53,6 +53,7 @@ interface TrackingOrder {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  courier_delivery_photo_url?: string;
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
@@ -301,6 +302,7 @@ export default function OrderTracking() {
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
+  const courierDeliveryPhotoUrl = order?.courier_delivery_photo_url?.trim() || "";
   const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
   const deliveryReopenedLabel = order?.delivery_reopened_at ? formatDateTime(order.delivery_reopened_at) : "";
   const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
@@ -755,6 +757,12 @@ export default function OrderTracking() {
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Observação da entrega</p>
                 <p className="mt-1 leading-relaxed">{courierDeliveryNote}</p>
+              </div>
+            ) : null}
+            {courierDeliveryPhotoUrl ? (
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                <p className="px-3 pt-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Foto da entrega</p>
+                <img src={courierDeliveryPhotoUrl} alt="Foto da entrega" className="mt-2 h-52 w-full object-cover" />
               </div>
             ) : null}
             {closedAtLabel ? (
