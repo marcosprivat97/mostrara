@@ -36,7 +36,11 @@ import {
   registerSchema,
   validationError,
 } from "../lib/validation.js";
-import { resolveStoreTaxonomy } from "../lib/store-taxonomy.js";
+import {
+  resolveStoreDeliveryConfig,
+  resolveStoreTaxonomy,
+  resolveStoreTaxonomyFromProfile,
+} from "../lib/store-taxonomy.js";
 
 const router = Router();
 const APP_URL = env.core.appUrl;
@@ -130,6 +134,9 @@ function slugify(text: string): string {
 }
 
 export function sanitizeUser(user: AuthUserRecord) {
+  const taxonomy = resolveStoreTaxonomyFromProfile(user);
+  const delivery = resolveStoreDeliveryConfig(user);
+
   return {
     id: user.id,
     store_name: user.store_name,
@@ -139,8 +146,8 @@ export function sanitizeUser(user: AuthUserRecord) {
     whatsapp: user.whatsapp,
     store_slug: user.store_slug,
     description: user.description ?? "",
-    store_mode: user.store_mode,
-    canonical_niche: user.canonical_niche,
+    store_mode: taxonomy.storeMode,
+    canonical_niche: taxonomy.canonicalNiche,
     city: user.city ?? "Rio de Janeiro",
     state: user.state,
     store_cep: user.store_cep,
@@ -154,7 +161,7 @@ export function sanitizeUser(user: AuthUserRecord) {
     theme_primary: user.theme_primary ?? "#dc2626",
     theme_secondary: user.theme_secondary ?? "#111827",
     theme_accent: user.theme_accent ?? "#ffffff",
-    store_type: user.store_type,
+    store_type: taxonomy.storeType,
     plan: user.plan ?? "free",
     free_forever: user.free_forever ?? false,
     verified_badge: user.verified_badge ?? false,
@@ -167,8 +174,8 @@ export function sanitizeUser(user: AuthUserRecord) {
     onboarding_completed_at: user.onboarding_completed_at,
     is_open: user.is_open ?? true,
     store_hours: user.store_hours,
-    delivery_fee_type: user.delivery_fee_type,
-    delivery_fee_amount: Number(user.delivery_fee_amount || 0),
+    delivery_fee_type: delivery.deliveryFeeType,
+    delivery_fee_amount: delivery.deliveryFeeAmount,
     created_at: user.created_at,
     last_login_at: user.last_login_at,
   };

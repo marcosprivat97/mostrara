@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { melhorenvioService } from "../lib/melhorenvio.js";
 import { db, usersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
+import { resolveStoreTaxonomyFromProfile } from "../lib/store-taxonomy.js";
 
 const router: IRouter = Router();
 
@@ -34,7 +35,9 @@ router.post("/calculate", async (req, res) => {
       return;
     }
 
-    if ((store.store_mode || "retail") !== "retail") {
+    const taxonomy = resolveStoreTaxonomyFromProfile(store);
+
+    if (taxonomy.storeMode !== "retail") {
       res.status(400).json({ error: "Esse nicho nao usa frete por transportadora" });
       return;
     }

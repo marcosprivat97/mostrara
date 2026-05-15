@@ -8,7 +8,10 @@ import { uploadImageToCloudinary } from "../lib/cloudinary.js";
 import { sendPasswordChangedEmail } from "../lib/email.js";
 import { geocodeStoreAddress } from "../lib/location.js";
 import { logSnagEvent, logSnagIdentify } from "../lib/logsnag.js";
-import { resolveStoreTaxonomy } from "../lib/store-taxonomy.js";
+import {
+  resolveStoreDeliveryConfig,
+  resolveStoreTaxonomy,
+} from "../lib/store-taxonomy.js";
 import { parseBody, passwordSchema, settingsSchema, uploadImageSchema, validationError } from "../lib/validation.js";
 import { sanitizeUser } from "./auth.js";
 
@@ -18,16 +21,46 @@ router.use(authMiddleware);
 router.put("/", async (req: AuthRequest, res) => {
   try {
     const body = parseBody(settingsSchema, req.body);
+    const [currentUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId!))
+      .limit(1);
+
+    if (!currentUser) {
+      res.status(404).json({ error: "Usuario nao encontrado" });
+      return;
+    }
+
     const updateData: Partial<typeof usersTable.$inferInsert> = {};
+    const nextTaxonomy = body.store_type !== undefined
+      ? resolveStoreTaxonomy(body.store_type)
+      : {
+          storeType: currentUser.store_type ?? undefined,
+          storeMode: currentUser.store_mode ?? undefined,
+          canonicalNiche: currentUser.canonical_niche ?? undefined,
+        };
+
+    const nextDelivery = resolveStoreDeliveryConfig({
+      store_type: nextTaxonomy.storeType,
+      store_mode: nextTaxonomy.storeMode,
+      canonical_niche: nextTaxonomy.canonicalNiche,
+      delivery_fee_type: body.delivery_fee_type !== undefined
+        ? body.delivery_fee_type
+        : currentUser.delivery_fee_type,
+      delivery_fee_amount: body.delivery_fee_amount !== undefined
+        ? body.delivery_fee_amount
+        : currentUser.delivery_fee_amount,
+    });
+
     if (body.store_name !== undefined) updateData.store_name = body.store_name;
     if (body.owner_name !== undefined) updateData.owner_name = body.owner_name;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.whatsapp !== undefined) updateData.whatsapp = body.whatsapp;
     if (body.store_type !== undefined) {
-      const taxonomy = resolveStoreTaxonomy(body.store_type);
-      updateData.store_type = taxonomy.storeType;
-      updateData.store_mode = taxonomy.storeMode;
-      updateData.canonical_niche = taxonomy.canonicalNiche;
+      updateData.store_type = nextTaxonomy.storeType;
+      updateData.store_mode = nextTaxonomy.storeMode;
+      updateData.canonical_niche = nextTaxonomy.canonicalNiche;
     }
     if (body.description !== undefined) updateData.description = body.description;
     if (body.city !== undefined) updateData.city = body.city;
@@ -44,8 +77,14 @@ router.put("/", async (req: AuthRequest, res) => {
     if (body.theme_accent !== undefined) updateData.theme_accent = body.theme_accent;
     if (body.is_open !== undefined) updateData.is_open = body.is_open;
     if (body.store_hours !== undefined) updateData.store_hours = body.store_hours;
-    if (body.delivery_fee_type !== undefined) updateData.delivery_fee_type = body.delivery_fee_type;
-    if (body.delivery_fee_amount !== undefined) updateData.delivery_fee_amount = String(body.delivery_fee_amount);
+    if (
+      body.delivery_fee_type !== undefined ||
+      body.delivery_fee_amount !== undefined ||
+      body.store_type !== undefined
+    ) {
+      updateData.delivery_fee_type = nextDelivery.deliveryFeeType;
+      updateData.delivery_fee_amount = String(nextDelivery.deliveryFeeAmount);
+    }
 
     const [updated] = await db
       .update(usersTable)

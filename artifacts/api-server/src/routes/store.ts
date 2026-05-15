@@ -13,7 +13,10 @@ import { isPremium } from "../lib/plan.js";
 import { env } from "../lib/env.js";
 import { sendMerchantOrderEmail } from "../lib/email.js";
 import { logSnagEvent } from "../lib/logsnag.js";
-import { isBookingStoreType } from "../lib/store-taxonomy.js";
+import {
+  resolveStoreDeliveryConfig,
+  resolveStoreTaxonomyFromProfile,
+} from "../lib/store-taxonomy.js";
 import { evolutionService } from "../lib/evolution.js";
 import { formatProduct, parseOptions } from "../lib/product-data.js";
 import {
@@ -167,6 +170,8 @@ router.get("/:storeSlug", async (req, res) => {
       ))
       .orderBy(desc(productsTable.created_at));
 
+    const storeProfile = resolveStoreDeliveryConfig(user);
+
     res.json({
       store: {
         store_name: user.store_name,
@@ -186,13 +191,13 @@ router.get("/:storeSlug", async (req, res) => {
         theme_primary: user.theme_primary,
         theme_secondary: user.theme_secondary,
         theme_accent: user.theme_accent,
-        store_type: user.store_type,
-        store_mode: user.store_mode,
-        canonical_niche: user.canonical_niche,
+        store_type: storeProfile.storeType,
+        store_mode: storeProfile.storeMode,
+        canonical_niche: storeProfile.canonicalNiche,
         is_open: user.is_open,
         store_hours: user.store_hours,
-        delivery_fee_type: user.delivery_fee_type,
-        delivery_fee_amount: Number(user.delivery_fee_amount || 0),
+        delivery_fee_type: storeProfile.deliveryFeeType,
+        delivery_fee_amount: storeProfile.deliveryFeeAmount,
         verified_badge: Boolean(user.verified_badge && isPremium(user)),
         mercado_pago_connected: Boolean(user.mp_connected_at && user.mp_user_id && isPremium(user)),
         mercado_pago_connected_at: user.mp_connected_at,
@@ -274,7 +279,9 @@ router.post("/:storeSlug/availability", async (req, res) => {
       return;
     }
 
-    if (!isBookingStoreType(user.store_type)) {
+    const storeProfile = resolveStoreTaxonomyFromProfile(user);
+
+    if (storeProfile.storeMode !== "booking") {
       res.status(400).json({ error: "Essa loja nao trabalha com agenda" });
       return;
     }
@@ -360,7 +367,8 @@ router.post("/:storeSlug/orders", async (req, res) => {
       return;
     }
 
-    const serviceStore = isBookingStoreType(user.store_type);
+    const storeProfile = resolveStoreDeliveryConfig(user);
+    const serviceStore = storeProfile.storeMode === "booking";
     if (serviceStore && (!body.appointment_date || !body.appointment_time)) {
       res.status(400).json({ error: "Data e horario sao obrigatorios para esse agendamento" });
       return;
@@ -458,9 +466,9 @@ router.post("/:storeSlug/orders", async (req, res) => {
 
     let deliveryFee = 0;
     if (body.delivery_method === "delivery") {
-      if (user.delivery_fee_type === "fixed") {
-        deliveryFee = Number(user.delivery_fee_amount || 0);
-      } else if (user.delivery_fee_type === "distance" && typeof body.delivery_fee === "number" && body.delivery_fee > 0) {
+      if (storeProfile.deliveryFeeType === "fixed") {
+        deliveryFee = storeProfile.deliveryFeeAmount;
+      } else if (storeProfile.deliveryFeeType === "distance" && typeof body.delivery_fee === "number" && body.delivery_fee > 0) {
         deliveryFee = body.delivery_fee;
       }
     }
