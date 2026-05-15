@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   phone: text("phone").notNull(),
   whatsapp: text("whatsapp").notNull(),
   store_slug: text("store_slug").unique().notNull(),
+  account_role: text("account_role").default("merchant").notNull(),
+  parent_user_id: text("parent_user_id"),
   store_type: text("store_type").default("celulares").notNull(),
   store_mode: text("store_mode").default("retail").notNull(),
   canonical_niche: text("canonical_niche"),

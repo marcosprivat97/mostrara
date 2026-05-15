@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, forwardRef } from "react";
+import { useState, useRef, useEffect, useMemo, forwardRef, type FormEvent } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/hooks/usePlan";
@@ -22,6 +22,7 @@ import {
   Clock,
   Truck,
   Search,
+  Bike,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STORE_TYPE_OPTIONS, getStoreTypeConfig, resolveStoreTypeFromProfile } from "@/lib/store-types";
@@ -57,6 +58,16 @@ interface PasswordForm {
   current_password: string;
   new_password: string;
   confirm_password: string;
+}
+
+interface CourierAccount {
+  id: string;
+  owner_name: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  active?: boolean;
+  last_login_at?: string | null;
 }
 
 function getStoreTypeHelper(mode: ReturnType<typeof getStoreTypeConfig>["mode"]) {
@@ -138,6 +149,10 @@ export default function DashboardSettings() {
   const [connectingMp, setConnectingMp] = useState(false);
   const [disconnectingMp, setDisconnectingMp] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [couriers, setCouriers] = useState<CourierAccount[]>([]);
+  const [courierForm, setCourierForm] = useState({ name: "", email: "", phone: "", whatsapp: "", password: "" });
+  const [loadingCouriers, setLoadingCouriers] = useState(false);
+  const [savingCourier, setSavingCourier] = useState(false);
   const { canUseMercadoPago } = usePlan();
   const fileRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
@@ -220,6 +235,7 @@ export default function DashboardSettings() {
     previewState ? ` / ${previewState}` : "",
   ].join("").trim();
   const mpConnected = Boolean(user?.mp_connected_at && String(user.mp_connected_at) !== "null");
+  const isCourier = (user?.account_role ?? "merchant") === "courier";
 
   useEffect(() => {
     if (!selectedStoreConfig.deliveryFeeOptions.some((option) => option.value === selectedDeliveryType)) {
@@ -238,6 +254,24 @@ export default function DashboardSettings() {
       return "";
     }
   }, [mpConnected, user?.mp_connected_at]);
+
+  const loadCouriers = async () => {
+    if (isCourier) return;
+    setLoadingCouriers(true);
+    try {
+      const data = await apiFetch<{ couriers: CourierAccount[] }>("/couriers", opts);
+      setCouriers(Array.isArray(data.couriers) ? data.couriers : []);
+    } catch {
+      setCouriers([]);
+    } finally {
+      setLoadingCouriers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user || isCourier) return;
+    loadCouriers();
+  }, [isCourier, user]);
 
   const connectMercadoPago = async () => {
     try {
@@ -390,6 +424,30 @@ export default function DashboardSettings() {
     } finally {
       if (isLogo) setUploadingLogo(false);
       else setUploadingCover(false);
+    }
+  };
+
+  const createCourier = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!courierForm.name.trim() || !courierForm.email.trim() || !courierForm.password.trim()) {
+      error("Preencha nome, e-mail e senha do entregador");
+      return;
+    }
+
+    try {
+      setSavingCourier(true);
+      await apiFetch("/couriers", {
+        method: "POST",
+        ...opts,
+        body: JSON.stringify(courierForm),
+      });
+      success("Entregador criado");
+      setCourierForm({ name: "", email: "", phone: "", whatsapp: "", password: "" });
+      await loadCouriers();
+    } catch (e: unknown) {
+      error(e instanceof Error ? e.message : "Nao foi possivel criar o entregador");
+    } finally {
+      setSavingCourier(false);
     }
   };
 
@@ -671,6 +729,106 @@ export default function DashboardSettings() {
           </div>
         </form>
       </Section>
+
+      {!isCourier && (
+        <Section icon={Bike} title="Entregadores da Loja">
+          <div className="space-y-5">
+            <form onSubmit={createCourier} className="grid gap-3 sm:grid-cols-2">
+              <FormInput
+                label="Nome do entregador"
+                required
+                value={courierForm.name}
+                onChange={(event) => setCourierForm((current) => ({ ...current, name: event.target.value }))}
+              />
+              <FormInput
+                label="E-mail"
+                required
+                type="email"
+                value={courierForm.email}
+                onChange={(event) => setCourierForm((current) => ({ ...current, email: event.target.value }))}
+              />
+              <FormInput
+                label="Telefone"
+                value={courierForm.phone}
+                onChange={(event) => setCourierForm((current) => ({ ...current, phone: event.target.value }))}
+              />
+              <FormInput
+                label="WhatsApp"
+                value={courierForm.whatsapp}
+                onChange={(event) => setCourierForm((current) => ({ ...current, whatsapp: event.target.value }))}
+              />
+              <FormInput
+                label="Senha inicial"
+                type="password"
+                required
+                value={courierForm.password}
+                onChange={(event) => setCourierForm((current) => ({ ...current, password: event.target.value }))}
+              />
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={savingCourier}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-60"
+                >
+                  {savingCourier ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bike className="h-4 w-4" />}
+                  Criar entregador
+                </button>
+              </div>
+            </form>
+
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Contas criadas</p>
+                  <p className="text-xs text-gray-500">Esses acessos entram no painel /courier e veem apenas as entregas atribuídas.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadCouriers}
+                  className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-gray-700 border border-gray-200 hover:bg-gray-50"
+                >
+                  Atualizar lista
+                </button>
+              </div>
+
+              {loadingCouriers ? (
+                <div className="space-y-2">
+                  <div className="h-14 rounded-xl skeleton" />
+                  <div className="h-14 rounded-xl skeleton" />
+                </div>
+              ) : couriers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+                  Nenhum entregador cadastrado ainda.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {couriers.map((courier) => (
+                    <div key={courier.id} className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{courier.owner_name}</p>
+                        <p className="text-xs text-gray-500">{courier.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className={cn(
+                          "rounded-full px-2.5 py-1 font-semibold",
+                          courier.active === false ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700",
+                        )}>
+                          {courier.active === false ? "Inativo" : "Ativo"}
+                        </span>
+                        {courier.last_login_at && (
+                          <span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold">
+                            Ultimo acesso {new Date(String(courier.last_login_at)).toLocaleDateString("pt-BR")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
 
       <Section icon={MapPin} title="Localizacao da Loja">
         <div className="space-y-4">

@@ -18,11 +18,13 @@ import clientErrorsRouter from "./client-errors";
 import whatsappRouter from "./whatsapp";
 import unsplashRouter from "./unsplash";
 import shippingRouter from "./shipping";
+import couriersRouter from "./couriers";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/shipping", shippingRouter);
+router.use("/couriers", couriersRouter);
 router.use("/auth", authRouter);
 router.use("/products", productsRouter);
 router.use("/store", storeRouter);

@@ -58,6 +58,8 @@ type AuthUserRecord = Partial<typeof usersTable.$inferSelect> & {
   phone: string;
   whatsapp: string;
   store_slug: string;
+  account_role?: string | null;
+  parent_user_id?: string | null;
 };
 
 const LEGACY_AUTH_BASE_COLUMNS = new Set([
@@ -69,6 +71,8 @@ const LEGACY_AUTH_BASE_COLUMNS = new Set([
   "phone",
   "whatsapp",
   "store_slug",
+  "account_role",
+  "parent_user_id",
   "description",
   "city",
   "logo_url",
@@ -85,6 +89,8 @@ const AUTH_USER_FALLBACK_PROJECTION = {
   phone: "''::text",
   whatsapp: "''::text",
   store_slug: "''::text",
+  account_role: "'merchant'::text",
+  parent_user_id: "null::text",
   description: "''::text",
   store_mode: "null::text",
   canonical_niche: "null::text",
@@ -145,6 +151,8 @@ export function sanitizeUser(user: AuthUserRecord) {
     phone: user.phone,
     whatsapp: user.whatsapp,
     store_slug: user.store_slug,
+    account_role: user.account_role ?? "merchant",
+    parent_user_id: user.parent_user_id ?? null,
     description: user.description ?? "",
     store_mode: taxonomy.storeMode,
     canonical_niche: taxonomy.canonicalNiche,
@@ -321,6 +329,10 @@ function safeRelativePath(value: string | undefined, fallback: string) {
   return value;
 }
 
+function shouldWarmEvolutionInstance(user: AuthUserRecord) {
+  return (user.account_role ?? "merchant") !== "courier";
+}
+
 router.post("/register", async (req, res) => {
   try {
     const { store_name, store_slug: requestedSlug, owner_name, email, password, phone, whatsapp, store_type, city } = parseBody(registerSchema, req.body);
@@ -364,6 +376,8 @@ router.post("/register", async (req, res) => {
         theme_secondary: "#111827",
         theme_accent: "#ffffff",
         active: true,
+        account_role: "merchant",
+        parent_user_id: null,
         onboarding_completed_at: null,
         last_login_at: new Date(),
       }).returning();
@@ -382,12 +396,14 @@ router.post("/register", async (req, res) => {
            phone,
            whatsapp,
            store_slug,
+           account_role,
+           parent_user_id,
            description,
            city,
            logo_url,
            active
          )
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          returning
            id,
            store_name,
@@ -397,6 +413,8 @@ router.post("/register", async (req, res) => {
            phone,
            whatsapp,
            store_slug,
+           account_role,
+           parent_user_id,
            description,
            city,
            logo_url,
@@ -411,6 +429,8 @@ router.post("/register", async (req, res) => {
           phone,
           whatsapp,
           store_slug,
+          "merchant",
+          null,
           "",
           city || "Rio de Janeiro",
           "",
@@ -453,8 +473,10 @@ router.post("/register", async (req, res) => {
     const token = signToken(user.id);
     
     // Pré-aquecimento da Instância do WhatsApp no background
-    const instanceName = `mostrara_store_${user.id}`;
-    evolutionService.createInstance(instanceName).catch(() => undefined);
+    if (shouldWarmEvolutionInstance(user)) {
+      const instanceName = `mostrara_store_${user.id}`;
+      evolutionService.createInstance(instanceName).catch(() => undefined);
+    }
 
     res.status(201).json({ token, user: sanitizeUser(user) });
   } catch (err: unknown) {
@@ -535,8 +557,10 @@ router.post("/login", async (req, res) => {
     const token = signToken(user.id);
     
     // Pré-aquecimento da Instância do WhatsApp no background
-    const instanceName = `mostrara_store_${user.id}`;
-    evolutionService.createInstance(instanceName).catch(() => undefined);
+    if (shouldWarmEvolutionInstance(user)) {
+      const instanceName = `mostrara_store_${user.id}`;
+      evolutionService.createInstance(instanceName).catch(() => undefined);
+    }
 
     res.json({ token, user: sanitizeUser(updated || user) });
   } catch (err) {
@@ -853,6 +877,8 @@ router.get("/google/callback", async (req, res) => {
           theme_secondary: "#111827",
           theme_accent: "#ffffff",
           active: true,
+          account_role: "merchant",
+          parent_user_id: null,
           onboarding_completed_at: null,
           last_login_at: new Date(),
         }).returning();
@@ -871,12 +897,14 @@ router.get("/google/callback", async (req, res) => {
              phone,
              whatsapp,
              store_slug,
+             account_role,
+             parent_user_id,
              description,
              city,
              logo_url,
              active
            )
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            returning
              id,
              store_name,
@@ -886,6 +914,8 @@ router.get("/google/callback", async (req, res) => {
              phone,
              whatsapp,
              store_slug,
+             account_role,
+             parent_user_id,
              description,
              city,
              logo_url,
@@ -900,6 +930,8 @@ router.get("/google/callback", async (req, res) => {
             "0000000000",
             "0000000000",
             storeSlug,
+            "merchant",
+            null,
             "",
             "Rio de Janeiro",
             "",

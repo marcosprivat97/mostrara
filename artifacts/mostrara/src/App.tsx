@@ -33,6 +33,8 @@ function App() {
             <Route path="/register" component={Login} />
             <Route path="/dashboard" component={Dashboard} />
             <Route path="/dashboard/*" component={Dashboard} />
+            <Route path="/courier" component={Dashboard} />
+            <Route path="/courier/*" component={Dashboard} />
             <Route path="/loja/:storeSlug/pedido/:orderId" component={OrderTracking} />
             <Route path="/loja/:storeSlug" component={Storefront} />
             <Route path="/reset-password" component={ResetPassword} />

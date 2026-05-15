@@ -117,7 +117,19 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
+async function runPhaseThreeMigration() {
+  if (!process.env.DATABASE_URL) {
+    console.log("[build] DATABASE_URL ausente, migracao de fase 3 ignorada");
+    return;
+  }
+
+  await import(new URL("./migrate_phase3.mjs", import.meta.url));
+}
+
+try {
+  await runPhaseThreeMigration();
+  await buildAll();
+} catch (err) {
   console.error(err);
   process.exit(1);
-});
+}

@@ -34,6 +34,7 @@ interface Order {
   delivery_fee?: number;
   status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "entregue" | "cancelado";
   created_at: string;
+  assigned_courier_id?: string | null;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -43,6 +44,13 @@ interface Order {
   city?: string;
   state?: string;
   reference?: string;
+}
+
+interface Courier {
+  id: string;
+  owner_name: string;
+  email: string;
+  active?: boolean;
 }
 
 const STATUSES = [
@@ -82,6 +90,7 @@ export default function DashboardOrdersKanban() {
   const { token, user } = useAuth();
   const { success, error: toastError } = useToastSimple();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(true);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
@@ -89,6 +98,7 @@ export default function DashboardOrdersKanban() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const storeType = resolveStoreTypeFromProfile(user);
   const isBookingStore = storeType === "manicure" || storeType === "salao";
+  const isCourier = (user?.account_role ?? "merchant") === "courier";
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -114,11 +124,19 @@ export default function DashboardOrdersKanban() {
       .finally(() => setLoading(false));
   };
 
+  const loadCouriers = () => {
+    if (isCourier) return;
+    apiFetch<{ couriers: Courier[] }>("/couriers", opts)
+      .then((data) => setCouriers(Array.isArray(data.couriers) ? data.couriers : []))
+      .catch(() => setCouriers([]));
+  };
+
   useEffect(() => {
     loadOrders();
+    loadCouriers();
     const interval = setInterval(loadOrders, 30000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, isCourier]);
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     setMovingId(orderId);
@@ -134,6 +152,22 @@ export default function DashboardOrdersKanban() {
       toastError(e.message || "Erro ao atualizar status");
     } finally {
       setMovingId(null);
+    }
+  };
+
+  const assignCourier = async (orderId: string, courierId: string) => {
+    try {
+      await apiFetch(`/orders/${orderId}/assign-courier`, {
+        method: "PUT",
+        ...opts,
+        body: JSON.stringify({ courier_id: courierId }),
+      });
+      setOrders((prev) => prev.map((order) => (
+        order.id === orderId ? { ...order, assigned_courier_id: courierId || null } : order
+      )));
+      success(courierId ? "Entregador atribuido" : "Entregador removido");
+    } catch (e: any) {
+      toastError(e.message || "Erro ao atribuir entregador");
     }
   };
 
@@ -328,6 +362,26 @@ export default function DashboardOrdersKanban() {
                             </motion.div>
                           )}
                         </AnimatePresence>
+
+                        {!isCourier && !isBookingStore && (order.delivery_method || "delivery") === "delivery" && order.status !== "entregue" && (
+                          <div className="mb-3 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                              Entregador
+                            </label>
+                            <select
+                              value={order.assigned_courier_id || ""}
+                              onChange={(event) => assignCourier(order.id, event.target.value)}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                            >
+                              <option value="">Sem atribuição</option>
+                              {couriers.map((courier) => (
+                                <option key={courier.id} value={courier.id}>
+                                  {courier.owner_name} {courier.active === false ? "(inativo)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="flex gap-2">

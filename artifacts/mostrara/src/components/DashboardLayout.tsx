@@ -5,7 +5,7 @@ import { usePlan } from "@/hooks/usePlan";
 import {
   LayoutDashboard, Package, TrendingUp, Store, Settings, LogOut, Menu,
   ExternalLink, ChevronRight, Copy, MessageSquare, TicketPercent, Bot, Shield,
-  Crown, Lock, ClipboardList,
+  Crown, Lock, ClipboardList, Bike,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToastSimple } from "@/hooks/useToastSimple";
@@ -22,6 +22,10 @@ const baseNavItems = [
   { label: "Minha Loja", icon: Store, path: "/dashboard/store", premiumOnly: false },
   { label: "Suporte", icon: MessageSquare, path: "/dashboard/support", premiumOnly: false },
   { label: "Configuracoes", icon: Settings, path: "/dashboard/settings", premiumOnly: false },
+];
+
+const courierNavItems = [
+  { label: "Entregas", icon: Bike, path: "/courier", premiumOnly: false },
 ];
 
 type NavItem = (typeof baseNavItems)[0];
@@ -48,14 +52,15 @@ function NavLink({ item, active, locked, onClick }: { item: NavItem; active: boo
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
-  const { isPremium, plan } = usePlan();
+  const { isPremium } = usePlan();
   const { success, error } = useToastSimple();
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isCourier = (user?.account_role ?? "merchant") === "courier";
 
   const navItems = [
-    ...baseNavItems,
-    ...(user?.email?.toLowerCase() === "sevenbeatx@gmail.com"
+    ...(isCourier ? courierNavItems : baseNavItems),
+    ...(!isCourier && user?.email?.toLowerCase() === "sevenbeatx@gmail.com"
       ? [{ label: "Dev", icon: Shield, path: "/dashboard/admin", premiumOnly: false }]
       : []),
   ];
@@ -72,12 +77,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  const mobileNavItems = [
-    baseNavItems[0], // Visao Geral
-    baseNavItems[1], // Gestao de Pedidos
-    baseNavItems[2], // Produtos
-    baseNavItems[6], // Minha Loja
-  ];
+  const mobileNavItems = isCourier
+    ? courierNavItems
+    : [
+        baseNavItems[0], // Visao Geral
+        baseNavItems[1], // Gestao de Pedidos
+        baseNavItems[2], // Produtos
+        baseNavItems[6], // Minha Loja
+      ];
+  const mobileNavGridClass = isCourier ? "grid-cols-1" : "grid-cols-4";
 
   const SidebarContent = ({ onNavClick }: { onNavClick?: () => void }) => (
     <div className="flex flex-col h-full">
@@ -104,7 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </nav>
 
       <div className="px-3 py-4 space-y-2 border-t border-white/[0.07]">
-        {storeUrl && (
+        {!isCourier && storeUrl && (
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <a
               href={storeUrl}
@@ -126,24 +134,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        {/* Plan badge */}
-        <div className={cn(
-          "mx-1 px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold",
-          isPremium
-            ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/20"
-            : "bg-white/[0.05] text-gray-500 border border-white/[0.07]"
-        )}>
-          {isPremium ? <Crown className="w-3.5 h-3.5" /> : <Package className="w-3.5 h-3.5" />}
-          {isPremium ? "Premium ✨" : "Plano Free"}
-          {!isPremium && (
-            <button
-              onClick={() => navigate("/dashboard/settings")}
-              className="ml-auto text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-md hover:bg-amber-500/30 transition-colors"
-            >
-              Upgrade
-            </button>
-          )}
-        </div>
+        {!isCourier && (
+          <div className={cn(
+            "mx-1 px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold",
+            isPremium
+              ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/20"
+              : "bg-white/[0.05] text-gray-500 border border-white/[0.07]"
+          )}>
+            {isPremium ? <Crown className="w-3.5 h-3.5" /> : <Package className="w-3.5 h-3.5" />}
+            {isPremium ? "Premium ✨" : "Plano Free"}
+            {!isPremium && (
+              <button
+                onClick={() => navigate("/dashboard/settings")}
+                className="ml-auto text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-md hover:bg-amber-500/30 transition-colors"
+              >
+                Upgrade
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-600/30 flex items-center justify-center flex-shrink-0">
@@ -154,6 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-medium truncate">{user?.store_name}</p>
             <p className="text-gray-500 text-xs truncate">{user?.email}</p>
+            {isCourier && <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold">Entregador</p>}
           </div>
         </div>
 
@@ -203,7 +213,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur-xl px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
-          <div className="grid grid-cols-4 gap-1">
+          <div className={cn("grid gap-1", mobileNavGridClass)}>
             {mobileNavItems.map((item) => {
               const active = item.path === "/dashboard"
                 ? location === "/dashboard" || location === "/dashboard/"

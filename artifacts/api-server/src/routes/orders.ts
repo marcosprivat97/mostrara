@@ -285,4 +285,68 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
+  try {
+    const courierId = typeof req.body?.courier_id === "string" ? req.body.courier_id.trim() : "";
+    const [currentUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId!))
+      .limit(1);
+
+    if (!currentUser || (currentUser.account_role ?? "merchant") === "courier") {
+      res.status(403).json({ error: "Acesso restrito ao lojista" });
+      return;
+    }
+
+    if (courierId) {
+      const [courier] = await db
+        .select()
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.id, courierId),
+          eq(usersTable.parent_user_id, currentUser.id),
+          eq(usersTable.account_role, "courier"),
+          eq(usersTable.active, true),
+        ))
+        .limit(1);
+
+      if (!courier) {
+        res.status(404).json({ error: "Entregador nao encontrado" });
+        return;
+      }
+    }
+
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .limit(1);
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        assigned_courier_id: courierId || null,
+      })
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .returning();
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "AssignCourier error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 export default router;

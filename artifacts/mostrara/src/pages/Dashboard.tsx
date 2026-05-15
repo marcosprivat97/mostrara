@@ -15,6 +15,7 @@ const DashboardSupport = lazy(() => import("./DashboardSupport"));
 const DashboardAI = lazy(() => import("./DashboardAI"));
 const DashboardAdmin = lazy(() => import("./DashboardAdmin"));
 const DashboardOrdersKanban = lazy(() => import("./DashboardOrdersKanban"));
+const CourierDashboard = lazy(() => import("./CourierDashboard"));
 
 function PageSpinner() {
   return (
@@ -47,7 +48,7 @@ function DashboardNotFound() {
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
@@ -56,6 +57,12 @@ export default function Dashboard() {
       navigate("/login");
     }
   }, [user, isLoading, navigate]);
+
+  useEffect(() => {
+    if (user?.account_role === "courier" && !location.startsWith("/courier")) {
+      navigate("/courier");
+    }
+  }, [location, navigate, user?.account_role]);
 
   if (isLoading) {
     return (
@@ -83,6 +90,7 @@ export default function Dashboard() {
       <DashboardLayout>
         <Suspense fallback={<PageSpinner />}>
           <Switch>
+            <Route path="/courier" component={CourierDashboard} />
             <Route path="/dashboard" component={DashboardOverview} />
             <Route path="/dashboard/overview" component={DashboardOverview} />
             <Route path="/dashboard/orders" component={DashboardOrdersKanban} />

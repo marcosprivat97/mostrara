@@ -11,6 +11,8 @@ interface User {
   phone: string;
   whatsapp: string;
   store_slug: string;
+  account_role?: string;
+  parent_user_id?: string | null;
   store_type?: string;
   store_mode?: string | null;
   canonical_niche?: string | null;
