@@ -60,6 +60,22 @@ async function getCurrentUser(userId: string) {
   return (user as CourierUser | undefined) ?? null;
 }
 
+async function getAlternativeCourier(merchantId: string, excludedCourierId: string) {
+  const [courier] = await db
+    .select()
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.parent_user_id, merchantId),
+      eq(usersTable.account_role, "courier"),
+      eq(usersTable.active, true),
+      ne(usersTable.id, excludedCourierId),
+    ))
+    .orderBy(desc(usersTable.created_at))
+    .limit(1);
+
+  return (courier as CourierUser | undefined) ?? null;
+}
+
 function formatCourier(user: CourierUser) {
   return {
     id: user.id,
@@ -106,6 +122,14 @@ function buildCourierResponseMessages(
   return {
     merchant: `O entregador ${courierName} recusou a entrega do pedido na *${storeName}*. A loja precisa redistribuir este pedido.`,
     customer: `Seu pedido na *${storeName}* precisou ser redistribuido e a loja ja esta chamando outro entregador.`,
+  };
+}
+
+function buildRedispatchMessages(storeName: string, courierName: string) {
+  return {
+    merchant: `O pedido da *${storeName}* foi redistribuido para o entregador ${courierName}.`,
+    customer: `Seu pedido na *${storeName}* foi redistribuido e agora esta com o entregador ${courierName}.`,
+    courier: `Novo pedido atribuido para voce na loja *${storeName}*.`,
   };
 }
 
@@ -362,7 +386,7 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
       .where(eq(usersTable.id, currentUser.parent_user_id))
       .limit(1);
 
-    const [updatedOrder] = await db
+    const [declinedOrder] = await db
       .update(ordersTable)
       .set({
         assigned_courier_id: null,
@@ -389,7 +413,40 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
       void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, response.customer).catch(() => undefined);
     }
 
-    res.json({ order: formatOrder(updatedOrder) });
+    const alternativeCourier = await getAlternativeCourier(currentUser.parent_user_id, currentUser.id);
+    if (alternativeCourier?.id) {
+      const [redispatchedOrder] = await db
+        .update(ordersTable)
+        .set({
+          assigned_courier_id: alternativeCourier.id,
+          courier_assignment_status: "pending" as CourierAssignmentStatus,
+          courier_assignment_updated_at: new Date(),
+        })
+        .where(and(
+          eq(ordersTable.id, declinedOrder.id),
+          eq(ordersTable.user_id, currentUser.parent_user_id),
+        ))
+        .returning();
+
+      const redispatchMessages = buildRedispatchMessages(
+        merchant?.store_name || "nossa loja",
+        alternativeCourier.owner_name,
+      );
+      if (merchant?.whatsapp) {
+        void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, redispatchMessages.merchant).catch(() => undefined);
+      }
+      if (redispatchedOrder.customer_whatsapp) {
+        void evolutionService.sendTextMessage(instanceName, redispatchedOrder.customer_whatsapp, redispatchMessages.customer).catch(() => undefined);
+      }
+      if (alternativeCourier.whatsapp) {
+        void evolutionService.sendTextMessage(instanceName, alternativeCourier.whatsapp, redispatchMessages.courier).catch(() => undefined);
+      }
+
+      res.json({ order: formatOrder(redispatchedOrder) });
+      return;
+    }
+
+    res.json({ order: formatOrder(declinedOrder) });
   } catch (err) {
     req.log.error({ err }, "CourierDecline error");
     res.status(500).json({ error: "Erro interno do servidor" });
