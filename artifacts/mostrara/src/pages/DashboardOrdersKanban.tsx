@@ -37,6 +37,8 @@ interface Order {
   assigned_courier_id?: string | null;
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_pickup_at?: string | null;
+  courier_on_route_at?: string | null;
+  courier_delivered_at?: string | null;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -402,6 +404,16 @@ export default function DashboardOrdersKanban() {
                             {order.courier_pickup_at && (
                               <p className="mt-2 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
                                 Coletado {new Date(order.courier_pickup_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
+                            )}
+                            {order.courier_on_route_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-700">
+                                Saiu {new Date(order.courier_on_route_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
+                            )}
+                            {order.courier_delivered_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                                Entregue {new Date(order.courier_delivered_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                               </p>
                             )}
                           </div>

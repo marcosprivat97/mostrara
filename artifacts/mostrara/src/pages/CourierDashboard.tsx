@@ -34,6 +34,8 @@ interface CourierOrder {
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_assignment_updated_at?: string | null;
   courier_pickup_at?: string | null;
+  courier_on_route_at?: string | null;
+  courier_delivered_at?: string | null;
   items: CourierOrderItem[];
 }
 
@@ -271,6 +273,7 @@ export default function CourierDashboard() {
                         <span>{address}</span>
                       </p>
                     )}
+                    {order.courier_pickup_at && <p className="text-xs text-amber-700">Coleta {new Date(order.courier_pickup_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                     {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
                     {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
                   </div>
@@ -349,6 +352,7 @@ export default function CourierDashboard() {
                         <span>{address}</span>
                       </p>
                     )}
+                    {order.courier_on_route_at && <p className="text-xs text-orange-700">Saiu {new Date(order.courier_on_route_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                     {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
                     {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
                   </div>
@@ -418,6 +422,7 @@ export default function CourierDashboard() {
                         <span>{address}</span>
                       </p>
                     )}
+                    {order.courier_delivered_at && <p className="text-xs text-emerald-700">Entregue {new Date(order.courier_delivered_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                     {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
                     {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
                   </div>

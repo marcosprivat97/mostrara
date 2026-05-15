@@ -280,6 +280,7 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
         status: "em_rota",
         courier_assignment_status: "accepted" as CourierAssignmentStatus,
         courier_assignment_updated_at: new Date(),
+        courier_on_route_at: new Date(),
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -410,6 +411,9 @@ router.put("/orders/:id/accept", async (req: AuthRequest, res) => {
       .set({
         courier_assignment_status: "accepted" as CourierAssignmentStatus,
         courier_assignment_updated_at: new Date(),
+        courier_pickup_at: null,
+        courier_on_route_at: null,
+        courier_delivered_at: null,
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -477,6 +481,9 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
         assigned_courier_id: null,
         courier_assignment_status: "declined" as CourierAssignmentStatus,
         courier_assignment_updated_at: new Date(),
+        courier_pickup_at: null,
+        courier_on_route_at: null,
+        courier_delivered_at: null,
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -506,6 +513,9 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
           assigned_courier_id: alternativeCourier.id,
           courier_assignment_status: "pending" as CourierAssignmentStatus,
           courier_assignment_updated_at: new Date(),
+          courier_pickup_at: null,
+          courier_on_route_at: null,
+          courier_delivered_at: null,
         })
         .where(and(
           eq(ordersTable.id, declinedOrder.id),
@@ -593,7 +603,11 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
 
     const [updatedOrder] = await db
       .update(ordersTable)
-      .set({ status: "entregue", confirmed_at: order.confirmed_at || new Date() })
+      .set({
+        status: "entregue",
+        confirmed_at: order.confirmed_at || new Date(),
+        courier_delivered_at: new Date(),
+      })
       .where(and(
         eq(ordersTable.id, order.id),
         eq(ordersTable.user_id, currentUser.parent_user_id),

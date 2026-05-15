@@ -261,7 +261,10 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
           ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null }
           : {}),
         ...(status === "em_rota" && assignedCourierId
-          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date() }
+          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date() }
+          : {}),
+        ...(status === "entregue"
+          ? { courier_delivered_at: new Date() }
           : {}),
       })
       .where(and(
@@ -438,6 +441,8 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         courier_assignment_status: courierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus),
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
+        courier_on_route_at: null,
+        courier_delivered_at: null,
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
