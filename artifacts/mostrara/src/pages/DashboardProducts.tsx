@@ -88,6 +88,13 @@ function normalizePositiveNumber(value: unknown, fallback: number, min: number) 
 }
 
 function buildDefaultProductFormValues(storeConfig: ReturnType<typeof getStoreTypeConfig>): ProductForm {
+  const defaultDescription =
+    storeConfig.mode === "food"
+      ? "Descreva tamanhos, base, caldas, complementos e adicionais pagos."
+      : storeConfig.mode === "booking"
+      ? "Descreva o servico, duracao, politica de cancelamento e observacoes."
+      : "Descreva o produto, condicao, cor, garantia e o que vai junto.";
+
   return {
     name: "",
     category: storeConfig.categories[0],
@@ -97,7 +104,7 @@ function buildDefaultProductFormValues(storeConfig: ReturnType<typeof getStoreTy
     battery: "",
     warranty: "",
     status: storeConfig.statusOptions[0]?.value || "disponivel",
-    description: "",
+    description: defaultDescription,
     options_text: "",
     stock: 1,
     unlimited_stock: true,
@@ -169,6 +176,9 @@ function getNamePlaceholder(storeConfig: ReturnType<typeof getStoreTypeConfig>) 
 function getOptionsPlaceholder(storeConfig: ReturnType<typeof getStoreTypeConfig>) {
   if (storeConfig.mode === "food") {
     return "Uma opcao por linha. Ex:\nLeite em po | 2\nMorango | 3\nBorda recheada | 8";
+  }
+  if (storeConfig.mode === "booking") {
+    return "Sem complementos. Deixe em branco para servicos simples.";
   }
   return "Uma opcao por linha. Ex:\nAplicacao premium | 20\nAtendimento express | 35";
 }

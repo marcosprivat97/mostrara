@@ -339,6 +339,7 @@ function ProductCard({
   const { items, addItem } = useCart();
   const cartMatch = findCartMatch(items, product.id);
   const inCart = Boolean(cartMatch);
+  const cartQuantity = cartMatch?.quantity ?? 0;
   const available = isProductAvailable(product);
   const photo = Array.isArray(product.photos) ? product.photos[0] : undefined;
   const hasOptions = Boolean(product.options?.length);
@@ -443,7 +444,7 @@ function ProductCard({
             whileHover={isOpen && available ? { scale: 1.05 } : {}}
             whileTap={isOpen && available ? { scale: 0.95 } : {}}
             className={cn(
-              "flex-1 text-sm font-bold py-3 px-4 rounded-2xl transition-all duration-300 shadow-md",
+              "flex-1 text-sm font-bold py-3 px-4 rounded-2xl transition-all duration-300 shadow-md inline-flex items-center justify-center gap-2",
               !isOpen || !available
                 ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
                 : inCart
@@ -452,28 +453,30 @@ function ProductCard({
             )}
           >
             {!isOpen ? (
-              <span className="flex items-center justify-center gap-1 text-xs">
-                Fechada
-              </span>
+              <>
+                <span className="text-base">+</span>
+                <span className="text-xs">Fechada</span>
+              </>
             ) : !available ? (
-              <span className="flex items-center justify-center gap-1 text-xs">
-                Indisponivel
-              </span>
+              <>
+                <span className="text-base">+</span>
+                <span className="text-xs">Indisponivel</span>
+              </>
             ) : hasOptions ? (
-              <span className="flex items-center justify-center gap-1">
-                <Search className="w-4 h-4" />
-                {labels.viewAction}
-              </span>
+              <>
+                <span className="text-lg leading-none">+</span>
+                <span>{labels.viewAction}</span>
+              </>
             ) : inCart ? (
-              <span className="flex items-center justify-center gap-1">
-                <CheckCircle2 className="w-4 h-4" />
-                Adicionar mais
-              </span>
+              <>
+                <span className="text-lg leading-none">+</span>
+                <span>{cartQuantity > 0 ? `No carrinho ${cartQuantity}` : "Adicionar mais"}</span>
+              </>
             ) : (
-              <span className="flex items-center justify-center gap-1">
-                <ShoppingCart className="w-4 h-4" />
-                {labels.addAction}
-              </span>
+              <>
+                <span className="text-lg leading-none">+</span>
+                <span>{labels.addAction}</span>
+              </>
             )}
           </motion.button>
         </div>
