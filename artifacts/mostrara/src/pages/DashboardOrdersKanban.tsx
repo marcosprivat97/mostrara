@@ -38,6 +38,7 @@ interface Order {
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_pickup_at?: string | null;
   courier_on_route_at?: string | null;
+  courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   items: OrderItem[];
   cep?: string;
@@ -409,6 +410,11 @@ export default function DashboardOrdersKanban() {
                             {order.courier_on_route_at && (
                               <p className="mt-2 inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-700">
                                 Saiu {new Date(order.courier_on_route_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
+                            )}
+                            {order.courier_arrived_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-800">
+                                Chegou {new Date(order.courier_arrived_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                               </p>
                             )}
                             {order.courier_delivered_at && (

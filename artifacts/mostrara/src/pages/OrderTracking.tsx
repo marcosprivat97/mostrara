@@ -45,6 +45,7 @@ interface TrackingOrder {
   courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   courier_pickup_at?: string | null;
   courier_on_route_at?: string | null;
+  courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   items: TrackingItem[];
 }
@@ -279,6 +280,7 @@ export default function OrderTracking() {
         : "";
   const courierPickupLabel = order?.courier_pickup_at ? formatDateTime(order.courier_pickup_at) : "";
   const courierOnRouteLabel = order?.courier_on_route_at ? formatDateTime(order.courier_on_route_at) : "";
+  const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
@@ -672,6 +674,12 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Saiu para entrega</span>
                 <span className="text-right font-medium text-amber-700">{courierOnRouteLabel}</span>
+              </div>
+            ) : null}
+            {courierArrivedLabel ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Chegou ao endereço</span>
+                <span className="text-right font-medium text-orange-700">{courierArrivedLabel}</span>
               </div>
             ) : null}
             {courierDeliveredLabel ? (

@@ -140,6 +140,13 @@ function buildPickupMessages(storeName: string, courierName: string) {
   };
 }
 
+function buildArrivalMessages(storeName: string, courierName: string) {
+  return {
+    merchant: `O entregador ${courierName} chegou ao endereco do pedido na *${storeName}*.`,
+    customer: `Seu pedido na *${storeName}* chegou ao seu endereco com o entregador ${courierName}.`,
+  };
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -300,6 +307,67 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
   }
 });
 
+router.put("/orders/:id/arrived", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "em_rota") {
+      res.status(400).json({ error: "Este pedido ainda nao esta em rota" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        courier_arrived_at: new Date(),
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const arrivalMessages = buildArrivalMessages(merchant?.store_name || "nossa loja", currentUser.owner_name);
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, arrivalMessages.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, arrivalMessages.customer).catch(() => undefined);
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierArrived error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.put("/orders/:id/pickup", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -413,6 +481,7 @@ router.put("/orders/:id/accept", async (req: AuthRequest, res) => {
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
         courier_on_route_at: null,
+        courier_arrived_at: null,
         courier_delivered_at: null,
       })
       .where(and(
@@ -483,6 +552,7 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
         courier_assignment_updated_at: new Date(),
         courier_pickup_at: null,
         courier_on_route_at: null,
+        courier_arrived_at: null,
         courier_delivered_at: null,
       })
       .where(and(
@@ -515,6 +585,7 @@ router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
           courier_assignment_updated_at: new Date(),
           courier_pickup_at: null,
           courier_on_route_at: null,
+          courier_arrived_at: null,
           courier_delivered_at: null,
         })
         .where(and(
@@ -606,6 +677,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
       .set({
         status: "entregue",
         confirmed_at: order.confirmed_at || new Date(),
+        courier_arrived_at: order.courier_arrived_at || new Date(),
         courier_delivered_at: new Date(),
       })
       .where(and(
