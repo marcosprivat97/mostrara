@@ -40,6 +40,8 @@ interface CourierOrder {
   courier_delivery_note?: string;
   delivery_problem_at?: string | null;
   delivery_problem_note?: string;
+  delivery_problem_resolved_at?: string | null;
+  delivery_problem_resolution_note?: string;
   items: CourierOrderItem[];
 }
 
@@ -600,6 +602,7 @@ export default function CourierDashboard() {
                     {order.courier_arrived_at && <p className="text-xs text-orange-700">Chegou {new Date(order.courier_arrived_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                     {order.courier_delivery_note && <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">{order.courier_delivery_note}</p>}
                     {order.delivery_problem_at && <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">Problema {new Date(order.delivery_problem_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
+                    {order.delivery_problem_resolved_at && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">Resolvido {new Date(order.delivery_problem_resolved_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 lg:min-w-56">
@@ -699,6 +702,7 @@ export default function CourierDashboard() {
                     {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
                     {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
                     {order.delivery_problem_at && <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{order.delivery_problem_note || "Problema reportado"}</p>}
+                    {order.delivery_problem_resolved_at && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">{order.delivery_problem_resolution_note || "Problema resolvido"}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 lg:min-w-56">

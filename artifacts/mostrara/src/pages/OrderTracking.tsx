@@ -54,6 +54,8 @@ interface TrackingOrder {
   delivery_reopen_note?: string;
   delivery_problem_at?: string | null;
   delivery_problem_note?: string;
+  delivery_problem_resolved_at?: string | null;
+  delivery_problem_resolution_note?: string;
   items: TrackingItem[];
 }
 
@@ -295,6 +297,8 @@ export default function OrderTracking() {
   const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
   const deliveryProblemLabel = order?.delivery_problem_at ? formatDateTime(order.delivery_problem_at) : "";
   const deliveryProblemNote = order?.delivery_problem_note?.trim() || "";
+  const deliveryProblemResolvedLabel = order?.delivery_problem_resolved_at ? formatDateTime(order.delivery_problem_resolved_at) : "";
+  const deliveryProblemResolutionNote = order?.delivery_problem_resolution_note?.trim() || "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -731,6 +735,13 @@ export default function OrderTracking() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-red-500">Problema na entrega</p>
                 <p className="mt-1 leading-relaxed">Reportado em {deliveryProblemLabel}.</p>
                 {deliveryProblemNote ? <p className="mt-2 text-xs text-red-700">{deliveryProblemNote}</p> : null}
+              </div>
+            ) : null}
+            {deliveryProblemResolvedLabel ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Problema resolvido</p>
+                <p className="mt-1 leading-relaxed">Resolvido em {deliveryProblemResolvedLabel}.</p>
+                {deliveryProblemResolutionNote ? <p className="mt-2 text-xs text-emerald-700">{deliveryProblemResolutionNote}</p> : null}
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (

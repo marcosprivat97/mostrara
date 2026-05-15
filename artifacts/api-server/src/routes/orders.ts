@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db, ordersTable, salesTable, productsTable, usersTable } from "@workspace/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { evolutionService } from "../lib/evolution.js";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 
@@ -86,6 +86,37 @@ async function selectActiveMerchantCourier(merchantId: string): Promise<Merchant
     .limit(1);
 
   return (courier as MerchantCourier | undefined) ?? null;
+}
+
+async function selectAlternativeMerchantCourier(merchantId: string, excludedCourierId: string): Promise<MerchantCourier | null> {
+  const [courier] = await db
+    .select({
+      id: usersTable.id,
+      owner_name: usersTable.owner_name,
+      whatsapp: usersTable.whatsapp,
+      store_name: usersTable.store_name,
+    })
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.parent_user_id, merchantId),
+      eq(usersTable.account_role, "courier"),
+      eq(usersTable.active, true),
+      ne(usersTable.id, excludedCourierId),
+    ))
+    .orderBy(desc(usersTable.created_at))
+    .limit(1);
+
+  return (courier as MerchantCourier | undefined) ?? null;
+}
+
+function buildDeliveryProblemResolutionMessages(storeName: string, note: string) {
+  return {
+    merchant: note
+      ? `O problema de entrega do pedido na *${storeName}* foi resolvido. Observacao: ${note}`
+      : `O problema de entrega do pedido na *${storeName}* foi resolvido e o pedido voltou para a fila de entrega.`,
+    customer: `O problema de entrega do seu pedido na *${storeName}* foi resolvido. Uma nova tentativa foi iniciada.`,
+    courier: `Uma entrega da loja *${storeName}* foi reaberta e ja pode ser atendida.`,
+  };
 }
 
 function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string, statusLabel = "Pedido aguardando sua aceitacao") {
@@ -298,13 +329,13 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
         ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
         ...(status === "saiu_entrega"
-          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "" }
+          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
         ...(status === "em_rota" && assignedCourierId
-          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date(), delivery_problem_at: null, delivery_problem_note: "" }
+          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date(), delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
         ...(status === "entregue"
-          ? { courier_arrived_at: currentOrder.courier_arrived_at || new Date(), courier_delivered_at: new Date(), delivery_problem_at: null, delivery_problem_note: "" }
+          ? { courier_arrived_at: currentOrder.courier_arrived_at || new Date(), courier_delivered_at: new Date(), delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
       })
       .where(and(
@@ -543,6 +574,8 @@ router.put("/:id/reopen-delivery", async (req: AuthRequest, res: Response) => {
         delivery_reopen_note: reopenNote,
         delivery_problem_at: null,
         delivery_problem_note: "",
+        delivery_problem_resolved_at: null,
+        delivery_problem_resolution_note: "",
       })
       .where(and(
         eq(ordersTable.id, currentOrder.id),
@@ -577,6 +610,92 @@ router.put("/:id/reopen-delivery", async (req: AuthRequest, res: Response) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "ReopenDelivery error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/:id/resolve-problem", async (req: AuthRequest, res: Response) => {
+  try {
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .limit(1);
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (!currentOrder.delivery_problem_at) {
+      res.status(400).json({ error: "Este pedido nao possui problema aberto" });
+      return;
+    }
+
+    const resolutionNote = normalizeNote(req.body?.note);
+    const merchantCourier = currentOrder.assigned_courier_id
+      ? await selectAlternativeMerchantCourier(req.userId!, currentOrder.assigned_courier_id)
+      : await selectActiveMerchantCourier(req.userId!);
+
+    const assignedCourierId = merchantCourier?.id || currentOrder.assigned_courier_id || null;
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        status: "saiu_entrega",
+        assigned_courier_id: assignedCourierId,
+        courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus),
+        courier_assignment_updated_at: new Date(),
+        courier_pickup_at: null,
+        courier_on_route_at: null,
+        courier_arrived_at: null,
+        courier_delivered_at: null,
+        courier_delivery_note: "",
+        closed_at: null,
+        delivery_problem_at: null,
+        delivery_problem_note: "",
+        delivery_problem_resolved_at: new Date(),
+        delivery_problem_resolution_note: resolutionNote,
+      })
+      .where(and(
+        eq(ordersTable.id, currentOrder.id),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .returning();
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId!))
+      .limit(1);
+
+    const instanceName = `mostrara_store_${req.userId}`;
+    const messages = buildDeliveryProblemResolutionMessages(merchant?.store_name || "nossa loja", resolutionNote);
+
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, messages.merchant).catch((err) => {
+        req.log.warn({ err }, "Failed to notify merchant about problem resolution");
+      });
+    }
+
+    if (updatedOrder.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, updatedOrder.customer_whatsapp, messages.customer).catch((err) => {
+        req.log.warn({ err }, "Failed to notify customer about problem resolution");
+      });
+    }
+
+    if (merchantCourier?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchantCourier.whatsapp, messages.courier).catch((err) => {
+        req.log.warn({ err }, "Failed to notify courier about problem resolution");
+      });
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "ResolveDeliveryProblem error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });
@@ -641,6 +760,8 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         closed_at: null,
         delivery_problem_at: null,
         delivery_problem_note: "",
+        delivery_problem_resolved_at: null,
+        delivery_problem_resolution_note: "",
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),

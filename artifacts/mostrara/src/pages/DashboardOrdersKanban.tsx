@@ -46,6 +46,8 @@ interface Order {
   delivery_reopen_note?: string;
   delivery_problem_at?: string | null;
   delivery_problem_note?: string;
+  delivery_problem_resolved_at?: string | null;
+  delivery_problem_resolution_note?: string;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -232,6 +234,26 @@ export default function DashboardOrdersKanban() {
       loadOrders();
     } catch (e: any) {
       toastError(e.message || "Erro ao reabrir entrega");
+    } finally {
+      setMovingId(null);
+    }
+  };
+
+  const resolveDeliveryProblem = async (order: Order) => {
+    const note = window.prompt("Como o problema foi resolvido?", order.delivery_problem_resolution_note || "");
+    if (note === null) return;
+
+    setMovingId(order.id);
+    try {
+      await apiFetch(`/orders/${order.id}/resolve-problem`, {
+        method: "PUT",
+        ...opts,
+        body: JSON.stringify({ note }),
+      });
+      success("Problema resolvido");
+      loadOrders();
+    } catch (e: any) {
+      toastError(e.message || "Erro ao resolver problema");
     } finally {
       setMovingId(null);
     }
@@ -495,6 +517,12 @@ export default function DashboardOrdersKanban() {
                                 {order.delivery_problem_note ? ` - ${order.delivery_problem_note}` : ""}
                               </p>
                             )}
+                            {order.delivery_problem_resolved_at && (
+                              <p className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-700">
+                                Resolvido {new Date(order.delivery_problem_resolved_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                                {order.delivery_problem_resolution_note ? ` - ${order.delivery_problem_resolution_note}` : ""}
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -544,6 +572,15 @@ export default function DashboardOrdersKanban() {
                                 Reabrir entrega
                               </button>
                             </>
+                          )}
+                          {order.delivery_problem_at && (
+                            <button
+                              onClick={() => resolveDeliveryProblem(order)}
+                              className="px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold py-2.5 rounded-xl transition-colors"
+                              title="Resolver problema"
+                            >
+                              Resolver problema
+                            </button>
                           )}
                           {order.status !== "cancelado" && order.status !== "entregue" && (
                             <button
@@ -603,6 +640,11 @@ export default function DashboardOrdersKanban() {
                 {order.delivery_reopen_note ? (
                   <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-xs text-amber-800">
                     {order.delivery_reopen_note}
+                  </p>
+                ) : null}
+                {order.delivery_problem_resolution_note ? (
+                  <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs text-emerald-800">
+                    {order.delivery_problem_resolution_note}
                   </p>
                 ) : null}
               </div>
