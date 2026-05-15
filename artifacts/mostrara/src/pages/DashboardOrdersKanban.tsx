@@ -31,7 +31,7 @@ interface Order {
   total: number;
   discount?: number;
   delivery_fee?: number;
-  status: "pendente" | "preparando" | "saiu_entrega" | "confirmado" | "cancelado";
+  status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "entregue" | "cancelado";
   created_at: string;
   items: OrderItem[];
   cep?: string;
@@ -46,9 +46,10 @@ interface Order {
 
 const STATUSES = [
   { id: "pendente", label: "Novos", icon: AlertCircle, color: "bg-blue-500", light: "bg-blue-50 text-blue-700 border-blue-200" },
+  { id: "confirmado", label: "Aceitos", icon: CheckCircle2, color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { id: "preparando", label: "Preparando", icon: ChefHat, color: "bg-orange-500", light: "bg-orange-50 text-orange-700 border-orange-200" },
-  { id: "saiu_entrega", label: "Em Rota", icon: Bike, color: "bg-purple-500", light: "bg-purple-50 text-purple-700 border-purple-200" },
-  { id: "confirmado", label: "Concluídos", icon: CheckCircle2, color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  { id: "saiu_entrega", label: "Saiu para entrega", icon: Bike, color: "bg-purple-500", light: "bg-purple-50 text-purple-700 border-purple-200" },
+  { id: "entregue", label: "Entregues", icon: CheckCircle2, color: "bg-emerald-600", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 ] as const;
 
 const PAYMENT_LABELS: Record<string, string> = {

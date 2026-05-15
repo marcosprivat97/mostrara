@@ -168,13 +168,13 @@ export default function DashboardSales() {
       await apiFetch(`/orders/${id}/status`, {
         method: "PUT",
         ...opts,
-        body: JSON.stringify({ status: "preparando" }),
+        body: JSON.stringify({ status: "confirmado" }),
       });
-      success("Pedido enviado para preparo!");
-      trackAnalytics("order_started_preparo", {});
+      success("Pedido aceito!");
+      trackAnalytics("order_accepted", {});
       load();
     } catch (e: unknown) {
-      toastError(e instanceof Error ? e.message : "Erro ao iniciar preparo");
+      toastError(e instanceof Error ? e.message : "Erro ao aceitar pedido");
     } finally {
       setOrderBusyId(null);
     }
@@ -350,7 +350,7 @@ export default function DashboardSales() {
                     className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
                     {orderBusyId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChefHat className="w-4 h-4" />}
-                    Iniciar preparo
+                    Aceitar pedido
                   </button>
                   <button
                     onClick={() => cancelOrder(order.id)}
@@ -444,7 +444,7 @@ export default function DashboardSales() {
               <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
                 <FormField
                   label="Produto / Modelo"
-                  placeholder="iPhone 14 Pro Max 256GB"
+                  placeholder="Combo especial da casa"
                   required
                   error={errors.product_name?.message}
                   {...register("product_name", { required: "Obrigatório" })}

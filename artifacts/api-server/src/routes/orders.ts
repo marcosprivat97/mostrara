@@ -47,7 +47,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
     const filters = [eq(ordersTable.user_id, req.userId!)];
-    if (status && ["pendente", "confirmado", "cancelado"].includes(status)) {
+    if (status && ["pendente", "confirmado", "preparando", "saiu_entrega", "entregue", "cancelado"].includes(status)) {
       filters.push(eq(ordersTable.status, status));
     }
 
@@ -159,7 +159,7 @@ router.post("/:id/cancel", async (req: AuthRequest, res: Response) => {
 router.put("/:id/status", async (req: AuthRequest, res: Response) => {
   try {
     const { status } = req.body;
-    const validStatuses = ["pendente", "preparando", "saiu_entrega", "confirmado", "cancelado"];
+    const validStatuses = ["pendente", "confirmado", "preparando", "saiu_entrega", "entregue", "cancelado"];
     
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: "Status invalido" });
@@ -181,10 +181,11 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
 
     const [updatedOrder] = await db
       .update(ordersTable)
-      .set({ 
-        status, 
+      .set({
+        status,
         ...(status === "confirmado" ? { confirmed_at: new Date() } : {}),
-        ...(status === "cancelado" ? { canceled_at: new Date() } : {})
+        ...(status === "entregue" ? { confirmed_at: currentOrder.confirmed_at || new Date() } : {}),
+        ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
@@ -233,20 +234,26 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
       const isDelivery = (currentOrder.delivery_method || "delivery") === "delivery";
       
       let message = "";
-      if (status === "preparando") {
+      if (status === "confirmado") {
         if (isDelivery) {
-          message = `Olá! Seu pedido no catálogo da *${storeName}* acaba de entrar em separação/preparo! 📦 Avisaremos assim que estiver a caminho.`;
+          message = `Seu pedido na *${storeName}* foi aceito e ja entrou na fila de preparo. Vamos atualizar o status assim que ele estiver pronto.`;
         } else {
-          message = `Olá! Seu pedido na *${storeName}* está sendo separado/preparado! 📦 Avisaremos quando estiver pronto para retirada.`;
+          message = `Seu pedido na *${storeName}* foi aceito e ja entrou na fila de preparo. Avisaremos quando estiver pronto para retirada.`;
+        }
+      } else if (status === "preparando") {
+        if (isDelivery) {
+          message = `Seu pedido na *${storeName}* ja esta sendo preparado. Assim que ficar pronto, avisamos o proximo passo.`;
+        } else {
+          message = `Seu pedido na *${storeName}* ja esta sendo preparado. Assim que ficar pronto, avisaremos para retirada.`;
         }
       } else if (status === "saiu_entrega") {
         if (isDelivery) {
-          message = `Ótimas notícias! Seu pedido da *${storeName}* acabou de sair para entrega e está a caminho! 🚚 Prepare-se para receber!`;
+          message = `Seu pedido na *${storeName}* saiu para entrega e deve chegar em breve. Fique atento ao WhatsApp.`;
         } else {
-          message = `Ótimas notícias! Seu pedido da *${storeName}* já está pronto e esperando por você para retirada no local! 🏪`;
+          message = `Seu pedido na *${storeName}* ja esta pronto para retirada.`;
         }
-      } else if (status === "confirmado") {
-        message = `Seu pedido foi marcado como concluído pela *${storeName}*. Agradecemos a preferência! 🌟`;
+      } else if (status === "entregue") {
+        message = `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
       }
 
       if (message) {

@@ -7,7 +7,7 @@ export const productsTable = pgTable("products", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  category: text("category").default("iPhone"),
+  category: text("category").default("Produto"),
   storage: text("storage").default(""),
   price: numeric("price", { precision: 12, scale: 2, mode: "number" }).notNull(),
   condition: text("condition").default("Vitrine"),

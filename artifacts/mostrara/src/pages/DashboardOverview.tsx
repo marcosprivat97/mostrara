@@ -6,7 +6,7 @@ import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { formatPrice } from "@/lib/formatters";
-import { getStoreTypeConfig } from "@/lib/store-types";
+import { getStoreTypeConfig, resolveStoreTypeFromProfile } from "@/lib/store-types";
 import { cn } from "@/lib/utils";
 import { buildStoreUrl } from "@/lib/urls";
 
@@ -61,7 +61,7 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
-  const storeConfig = getStoreTypeConfig(user?.store_type ?? user?.canonical_niche);
+  const storeConfig = getStoreTypeConfig(resolveStoreTypeFromProfile(user));
   const createItemLabel = storeConfig.mode === "booking" ? "Novo servico" : storeConfig.mode === "food" ? "Novo item" : "Novo produto";
   const recentItemsLabel = storeConfig.mode === "booking" ? "Servicos recentes" : storeConfig.mode === "food" ? "Itens recentes" : "Produtos recentes";
   const emptyItemsLabel = storeConfig.mode === "booking" ? "Nenhum servico cadastrado" : storeConfig.mode === "food" ? "Nenhum item cadastrado" : "Nenhum produto cadastrado";

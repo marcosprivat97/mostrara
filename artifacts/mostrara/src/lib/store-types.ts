@@ -506,6 +506,27 @@ export function resolveCanonicalStoreType(type?: string | null): CanonicalStoreT
   return STORE_TYPE_CANONICAL_MAP[normalizeStoreType(type)];
 }
 
+export function resolveStoreTypeFromProfile(profile?: {
+  store_type?: string | null;
+  store_mode?: string | null;
+  canonical_niche?: string | null;
+} | null) {
+  const rawStoreType = String(profile?.store_type || "").trim().toLowerCase();
+  if ((STORE_TYPES as readonly string[]).includes(rawStoreType)) {
+    return rawStoreType as StoreType;
+  }
+
+  const canonical = String(profile?.canonical_niche || "").trim().toLowerCase();
+  if ((STORE_TYPES as readonly string[]).includes(canonical)) {
+    return canonical as StoreType;
+  }
+
+  const mode = String(profile?.store_mode || "").trim().toLowerCase();
+  if (mode === "food") return "acai";
+  if (mode === "booking") return "manicure";
+  return "celulares";
+}
+
 function resolveStoreMode(type?: string | null): StoreMode {
   const normalized = normalizeStoreType(type);
   if (BOOKING_STORE_TYPES.has(normalized)) return "booking";

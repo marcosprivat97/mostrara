@@ -14,7 +14,7 @@ import {
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { getStoreTypeConfig } from "@/lib/store-types";
+import { getStoreTypeConfig, resolveStoreTypeFromProfile } from "@/lib/store-types";
 import { formatDurationMinutes, getSaoPauloToday } from "@/lib/service-schedule";
 import { StoreMap } from "@/components/StoreMap";
 import { trackAnalytics } from "@/lib/analytics";
@@ -102,13 +102,27 @@ function normalizePositiveNumber(value: unknown, fallback: number, min: number) 
   return Number.isFinite(numeric) && numeric >= min ? numeric : fallback;
 }
 
-function normalizeProduct(p: Partial<Product>): Product {
+function isLegacyTechCategory(value: unknown) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["iphone", "samsung", "xiaomi", "motorola", "acessorios", "acessórios", "celular", "celulares", "eletronicos", "eletrônicos"].some((token) => normalized.includes(token));
+}
+
+function normalizeCatalogCategory(value: unknown, storeType?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "Produto";
+  if (storeType && getStoreExperience(storeType).storeConfig.mode === "food" && isLegacyTechCategory(raw)) {
+    return "Produto";
+  }
+  return raw;
+}
+
+function normalizeProduct(p: Partial<Product>, storeType?: string | null): Product {
   return {
     id: String(p.id ?? crypto.randomUUID()),
     name: String(p.name ?? "Produto sem nome"),
     price: Number(p.price ?? 0),
     photos: Array.isArray(p.photos) ? p.photos.filter(Boolean) : [],
-    category: String(p.category ?? "Outros"),
+    category: normalizeCatalogCategory(p.category, storeType),
     storage: p.storage ? String(p.storage) : "",
     condition: p.condition ? String(p.condition) : "",
     battery: p.battery ? String(p.battery) : "",
@@ -328,7 +342,7 @@ function ProductCard({
   const available = isProductAvailable(product);
   const photo = Array.isArray(product.photos) ? product.photos[0] : undefined;
   const hasOptions = Boolean(product.options?.length);
-  const { labels } = getStoreExperience(storeType);
+  const { storeConfig, labels } = getStoreExperience(storeType);
 
   return (
     <motion.div
@@ -360,13 +374,18 @@ function ProductCard({
               {product.condition}
             </motion.div>
           )}
-          <div className="flex gap-2">
-            {product.category === "iPhone" && (
-              <div className="bg-blue-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg">
-                iPhone
-              </div>
-            )}
-          </div>
+          {product.category && product.category !== "Produto" ? (
+            <div
+              className={cn(
+                "text-xs font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm border",
+                storeConfig.mode === "food"
+                  ? "bg-white/90 text-gray-900 border-white/70"
+                  : "bg-blue-500 text-white border-blue-400",
+              )}
+            >
+              {product.category}
+            </div>
+          ) : null}
         </div>
         
         {/* Quick view indicator */}
@@ -511,6 +530,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
     appointmentDate: "",
     appointmentTime: "",
   });
+  const [includeCutlery, setIncludeCutlery] = useState(false);
+  const [includeNapkins, setIncludeNapkins] = useState(false);
 
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponValidationMsg, setCouponValidationMsg] = useState("");
@@ -555,6 +576,12 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const missingAddressFields = needsAddress && (!form.cep || !form.street || !form.number || !form.neighborhood || !form.city || !form.state);
   const missingScheduleFields = requiresSchedule && (!form.appointmentDate || !form.appointmentTime);
   const missingPixEmail = storeMercadoPagoConnected && form.payment === "pix" && !form.email;
+  const foodExtras = storeConfig.mode === "food"
+    ? [
+        includeCutlery ? "colher" : "",
+        includeNapkins ? "guardanapo" : "",
+      ].filter(Boolean).join(", ")
+    : "";
 
   const validateCoupon = async (code: string) => {
     const normalizedCode = code.trim().toUpperCase();
@@ -774,12 +801,14 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
           selectedShipping ? `*Frete:* ${selectedShipping.name} (${formatPrice(currentDeliveryFee)})` : (currentDeliveryFee > 0 ? `*Frete:* ${formatPrice(currentDeliveryFee)}` : ""),
         ].filter(Boolean)
       : ["*Modalidade:* Retirada no local"];
+    const foodExtrasLine = foodExtras ? `*Extras:* ${foodExtras}` : "";
     const lines = [
       `Novo Pedido - ${storeName}`,
       "",
       `*Cliente:* ${form.name}`,
       `*WhatsApp:* ${form.whatsapp}`,
       `*Pagamento:* ${pmt}`,
+      foodExtrasLine,
       ...addressLines,
       "",
       "*Itens:*",
@@ -821,6 +850,7 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
         : requiresSchedule && form.appointmentTime
         ? `Horario desejado: ${form.appointmentTime}`
         : "",
+      foodExtras ? `Extras do pedido: ${foodExtras}` : "",
       form.notes,
     ].filter(Boolean).join(" | ");
     const addressLines = needsAddress
@@ -1138,6 +1168,8 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
             setSendError("");
             setWhatsappCheckoutUrl("");
             setCreatedOrder(null);
+            setIncludeCutlery(false);
+            setIncludeNapkins(false);
           }
         }}
       >
@@ -1234,6 +1266,40 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
                       {supportsPickup && <option value="pickup">{labels.pickupOptionLabel}</option>}
                     </select>
                   </div>
+                  {storeConfig.mode === "food" && (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Extras do pedido</p>
+                        <p className="text-sm text-gray-500 mt-1">Marque os itens simples que acompanham o pedido.</p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className={cn(
+                          "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+                          includeCutlery ? "border-red-200 bg-red-50 text-red-700" : "border-gray-200 bg-white text-gray-700",
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={includeCutlery}
+                            onChange={(e) => setIncludeCutlery(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          Colher
+                        </label>
+                        <label className={cn(
+                          "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+                          includeNapkins ? "border-red-200 bg-red-50 text-red-700" : "border-gray-200 bg-white text-gray-700",
+                        )}>
+                          <input
+                            type="checkbox"
+                            checked={includeNapkins}
+                            onChange={(e) => setIncludeNapkins(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          Guardanapo
+                        </label>
+                      </div>
+                    </div>
+                  )}
                   {requiresSchedule && (
                     <>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800">
@@ -1901,14 +1967,15 @@ function StorefrontInner({ storeSlug }: { storeSlug: string }) {
   const { addItem, totalItems } = useCart();
   const [, navigate] = useLocation();
   const visibleProducts = products.filter(isProductAvailable);
-  const currentStoreType = store?.store_type ?? store?.canonical_niche ?? undefined;
+  const currentStoreType = resolveStoreTypeFromProfile(store);
   const { storeConfig, labels } = getStoreExperience(currentStoreType);
 
   useEffect(() => {
     apiFetch<{ store: StoreData; products: Product[] }>(`/store/${encodeURIComponent(storeSlug)}`)
       .then(d => {
+        const nextStoreType = resolveStoreTypeFromProfile(d.store);
         setStore(d.store);
-        setProducts(Array.isArray(d.products) ? d.products.map(normalizeProduct) : []);
+        setProducts(Array.isArray(d.products) ? d.products.map((product) => normalizeProduct(product, nextStoreType)) : []);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));

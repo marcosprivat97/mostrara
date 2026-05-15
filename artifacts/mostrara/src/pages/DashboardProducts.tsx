@@ -21,7 +21,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getStoreTypeConfig } from "@/lib/store-types";
+import { getStoreTypeConfig, resolveStoreTypeFromProfile } from "@/lib/store-types";
 import UpgradeModal from "@/components/UpgradeModal";
 
 interface Product {
@@ -163,7 +163,7 @@ function getSearchPlaceholder(storeConfig: ReturnType<typeof getStoreTypeConfig>
 function getNamePlaceholder(storeConfig: ReturnType<typeof getStoreTypeConfig>) {
   if (storeConfig.mode === "booking") return "Servico premium com horario flexivel";
   if (storeConfig.mode === "food") return "Combo especial da casa";
-  return "iPhone 14 Pro Max 256GB";
+  return "Combo especial da casa";
 }
 
 function getOptionsPlaceholder(storeConfig: ReturnType<typeof getStoreTypeConfig>) {
@@ -248,7 +248,7 @@ export default function DashboardProducts() {
   const { token, user } = useAuth();
   const { isPremium, maxProducts } = usePlan();
   const { success, error: toastError } = useToastSimple();
-  const storeConfig = getStoreTypeConfig(user?.store_type ?? user?.canonical_niche);
+  const storeConfig = getStoreTypeConfig(resolveStoreTypeFromProfile(user));
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

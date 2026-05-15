@@ -24,7 +24,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { STORE_TYPE_OPTIONS, getStoreTypeConfig } from "@/lib/store-types";
+import { STORE_TYPE_OPTIONS, getStoreTypeConfig, resolveStoreTypeFromProfile } from "@/lib/store-types";
 import { parseServiceHours, serializeServiceHours, type ServiceHourDay } from "@/lib/service-schedule";
 import { StoreMap } from "@/components/StoreMap";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -204,7 +204,7 @@ export default function DashboardSettings() {
     }
   }, [error, success]);
 
-  const selectedStoreType = watch("store_type") || user?.store_type || user?.canonical_niche || "celulares";
+  const selectedStoreType = watch("store_type") || resolveStoreTypeFromProfile(user);
   const selectedStoreConfig = getStoreTypeConfig(selectedStoreType);
   const selectedDeliveryType = watch("delivery_fee_type") || "none";
   const previewStreet = watch("store_address") || user?.store_address || "";

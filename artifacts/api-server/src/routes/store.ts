@@ -767,6 +767,7 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         payment_method: order.payment_method,
         payment_status: order.payment_status,
         delivery_method: order.delivery_method,
+        notes: order.notes,
         appointment_date: order.appointment_date,
         appointment_time: order.appointment_time,
         appointment_end_time: order.appointment_end_time,

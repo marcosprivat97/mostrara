@@ -54,7 +54,7 @@ export const passwordResetConfirmSchema = z.object({
 
 export const productSchema = z.object({
   name: z.string().trim().min(2).max(180),
-  category: z.string().trim().min(1).max(80).optional().default("iPhone"),
+  category: z.string().trim().min(1).max(80).optional().default("Produto"),
   storage: z.string().trim().max(80).optional().default(""),
   price: money,
   condition: z.string().trim().min(1).max(80).optional().default("Vitrine"),
