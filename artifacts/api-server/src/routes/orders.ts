@@ -52,6 +52,22 @@ type MerchantCourier = {
 
 type CourierAssignmentStatus = "unassigned" | "pending" | "accepted" | "declined";
 
+function normalizeNote(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 500);
+}
+
+function buildReopenDeliveryMessages(storeName: string, note: string) {
+  const base = `A entrega do seu pedido na *${storeName}* foi reaberta pela loja. Um novo envio sera organizado.`;
+  return {
+    merchant: note
+      ? `A entrega do pedido na *${storeName}* foi reaberta. Motivo: ${note}`
+      : `A entrega do pedido na *${storeName}* foi reaberta e voltou para a fila de atendimento.`,
+    customer: base,
+    courier: `Uma entrega da loja *${storeName}* foi reaberta e precisa de novo atendimento.`,
+  };
+}
+
 async function selectActiveMerchantCourier(merchantId: string): Promise<MerchantCourier | null> {
   const [courier] = await db
     .select({
@@ -92,6 +108,26 @@ function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, s
     items ? `Itens: ${items}` : "",
     order.notes ? `Obs: ${order.notes}` : "",
   ].filter(Boolean).join("\n");
+}
+
+async function getActiveMerchantCourier(merchantId: string) {
+  const [courier] = await db
+    .select({
+      id: usersTable.id,
+      owner_name: usersTable.owner_name,
+      whatsapp: usersTable.whatsapp,
+      store_name: usersTable.store_name,
+    })
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.parent_user_id, merchantId),
+      eq(usersTable.account_role, "courier"),
+      eq(usersTable.active, true),
+    ))
+    .orderBy(desc(usersTable.created_at))
+    .limit(1);
+
+  return courier || null;
 }
 
 router.get("/", async (req: AuthRequest, res: Response) => {
@@ -462,6 +498,83 @@ router.put("/:id/unarchive", async (req: AuthRequest, res: Response) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "UnarchiveOrder error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/:id/reopen-delivery", async (req: AuthRequest, res: Response) => {
+  try {
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .limit(1);
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (currentOrder.status !== "entregue") {
+      res.status(400).json({ error: "Apenas pedidos entregues podem ser reabertos" });
+      return;
+    }
+
+    const reopenNote = normalizeNote(req.body?.note);
+    const merchantCourier = await getActiveMerchantCourier(req.userId!);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        status: "saiu_entrega",
+        assigned_courier_id: merchantCourier?.id || null,
+        courier_assignment_status: merchantCourier ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus),
+        courier_assignment_updated_at: new Date(),
+        courier_pickup_at: null,
+        courier_on_route_at: null,
+        courier_arrived_at: null,
+        courier_delivered_at: null,
+        courier_delivery_note: "",
+        closed_at: null,
+        delivery_reopened_at: new Date(),
+        delivery_reopen_note: reopenNote,
+      })
+      .where(and(
+        eq(ordersTable.id, currentOrder.id),
+        eq(ordersTable.user_id, req.userId!),
+      ))
+      .returning();
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId!))
+      .limit(1);
+
+    const instanceName = `mostrara_store_${req.userId}`;
+    const messages = buildReopenDeliveryMessages(merchant?.store_name || "nossa loja", reopenNote);
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, messages.merchant).catch((err) => {
+        req.log.warn({ err }, "Failed to notify merchant about reopened delivery");
+      });
+    }
+    if (updatedOrder.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, updatedOrder.customer_whatsapp, messages.customer).catch((err) => {
+        req.log.warn({ err }, "Failed to notify customer about reopened delivery");
+      });
+    }
+    if (merchantCourier?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchantCourier.whatsapp, messages.courier).catch((err) => {
+        req.log.warn({ err }, "Failed to notify courier about reopened delivery");
+      });
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "ReopenDelivery error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });

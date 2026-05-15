@@ -796,6 +796,8 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_delivered_at: order.courier_delivered_at,
         courier_delivery_note: order.courier_delivery_note,
         closed_at: order.closed_at,
+        delivery_reopened_at: order.delivery_reopened_at,
+        delivery_reopen_note: order.delivery_reopen_note,
         notes: order.notes,
         appointment_date: order.appointment_date,
         appointment_time: order.appointment_time,

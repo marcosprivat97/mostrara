@@ -50,6 +50,8 @@ interface TrackingOrder {
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
   closed_at?: string | null;
+  delivery_reopened_at?: string | null;
+  delivery_reopen_note?: string;
   items: TrackingItem[];
 }
 
@@ -287,6 +289,8 @@ export default function OrderTracking() {
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
   const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
+  const deliveryReopenedLabel = order?.delivery_reopened_at ? formatDateTime(order.delivery_reopened_at) : "";
+  const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -709,6 +713,13 @@ export default function OrderTracking() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Arquivado pela loja</p>
                 <p className="mt-1 leading-relaxed">Conferido em {closedAtLabel}.</p>
+              </div>
+            ) : null}
+            {deliveryReopenedLabel ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Entrega reaberta</p>
+                <p className="mt-1 leading-relaxed">Nova tentativa iniciada em {deliveryReopenedLabel}.</p>
+                {deliveryReopenNote ? <p className="mt-2 text-xs text-amber-700">{deliveryReopenNote}</p> : null}
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (

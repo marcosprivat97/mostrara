@@ -42,6 +42,8 @@ interface Order {
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
   closed_at?: string | null;
+  delivery_reopened_at?: string | null;
+  delivery_reopen_note?: string;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -208,6 +210,26 @@ export default function DashboardOrdersKanban() {
       loadOrders();
     } catch (e: any) {
       toastError(e.message || "Erro ao reabrir pedido");
+    } finally {
+      setMovingId(null);
+    }
+  };
+
+  const reopenDelivery = async (order: Order) => {
+    const note = window.prompt("Motivo da nova tentativa de entrega", order.delivery_reopen_note || "");
+    if (note === null) return;
+
+    setMovingId(order.id);
+    try {
+      await apiFetch(`/orders/${order.id}/reopen-delivery`, {
+        method: "PUT",
+        ...opts,
+        body: JSON.stringify({ note }),
+      });
+      success("Entrega reaberta");
+      loadOrders();
+    } catch (e: any) {
+      toastError(e.message || "Erro ao reabrir entrega");
     } finally {
       setMovingId(null);
     }
@@ -493,18 +515,27 @@ export default function DashboardOrdersKanban() {
                             <Printer className="w-4 h-4" />
                           </button>
                           {order.status === "entregue" && (
-                            <button
-                              onClick={() => (order.closed_at ? unarchiveOrder(order.id) : archiveOrder(order.id))}
-                              className={cn(
-                                "px-3 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center",
-                                order.closed_at
-                                  ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                  : "bg-amber-50 hover:bg-amber-100 text-amber-700",
-                              )}
-                              title={order.closed_at ? "Reabrir pedido" : "Arquivar pedido"}
-                            >
-                              {order.closed_at ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => (order.closed_at ? unarchiveOrder(order.id) : archiveOrder(order.id))}
+                                className={cn(
+                                  "px-3 text-xs font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center",
+                                  order.closed_at
+                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                    : "bg-amber-50 hover:bg-amber-100 text-amber-700",
+                                )}
+                                title={order.closed_at ? "Reabrir pedido" : "Arquivar pedido"}
+                              >
+                                {order.closed_at ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => reopenDelivery(order)}
+                                className="px-3 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold py-2.5 rounded-xl transition-colors"
+                                title="Reabrir entrega"
+                              >
+                                Reabrir entrega
+                              </button>
+                            </>
                           )}
                           {order.status !== "cancelado" && order.status !== "entregue" && (
                             <button
@@ -561,6 +592,11 @@ export default function DashboardOrdersKanban() {
                 <p className="mt-2 text-xs text-slate-500">
                   Conferido em {order.closed_at ? new Date(order.closed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "-"}
                 </p>
+                {order.delivery_reopen_note ? (
+                  <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-xs text-amber-800">
+                    {order.delivery_reopen_note}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
