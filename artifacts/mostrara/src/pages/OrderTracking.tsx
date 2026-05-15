@@ -54,6 +54,7 @@ interface TrackingOrder {
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
   courier_delivery_photo_url?: string;
+  customer_delivery_confirmed_at?: string | null;
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
@@ -167,6 +168,7 @@ export default function OrderTracking() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [manualRefreshTick, setManualRefreshTick] = useState(0);
+  const [deliveryCodeInput, setDeliveryCodeInput] = useState("");
 
   const paymentRef = useRef<TrackingPayment | null>(null);
   const hasLoadedRef = useRef(false);
@@ -303,6 +305,7 @@ export default function OrderTracking() {
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
   const courierDeliveryPhotoUrl = order?.courier_delivery_photo_url?.trim() || "";
+  const customerDeliveryConfirmedLabel = order?.customer_delivery_confirmed_at ? formatDateTime(order.customer_delivery_confirmed_at) : "";
   const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
   const deliveryReopenedLabel = order?.delivery_reopened_at ? formatDateTime(order.delivery_reopened_at) : "";
   const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
@@ -330,6 +333,23 @@ export default function OrderTracking() {
       window.setTimeout(() => setCopiedCode(false), 1500);
     } catch {
       setSoftError("Nao foi possivel copiar o codigo Pix automaticamente.");
+    }
+  };
+
+  const confirmDelivery = async () => {
+    if (!storeSlug || !order?.id) return;
+    try {
+      await apiFetch<{ order: TrackingOrder }>(
+        `/store/${encodeURIComponent(storeSlug)}/orders/${encodeURIComponent(order.id)}/confirm-delivery`,
+        {
+          method: "POST",
+          body: JSON.stringify({ delivery_code: deliveryCodeInput }),
+        },
+      );
+      setDeliveryCodeInput("");
+      handleManualRefresh();
+    } catch (err) {
+      setSoftError(err instanceof Error ? err.message : "Nao foi possivel confirmar o recebimento.");
     }
   };
 
@@ -763,6 +783,37 @@ export default function OrderTracking() {
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
                 <p className="px-3 pt-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Foto da entrega</p>
                 <img src={courierDeliveryPhotoUrl} alt="Foto da entrega" className="mt-2 h-52 w-full object-cover" />
+              </div>
+            ) : null}
+            {order.status === "entregue" && !customerDeliveryConfirmedLabel ? (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-sky-500">Confirmar recebimento</p>
+                <p className="mt-1 text-xs leading-relaxed text-sky-700">
+                  Se você recebeu o pedido, confirme com o código enviado pela loja.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <input
+                    value={deliveryCodeInput}
+                    onChange={(event) => setDeliveryCodeInput(event.target.value)}
+                    placeholder="Codigo de entrega"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={confirmDelivery}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-sky-700 transition-colors"
+                  >
+                    Confirmar recebimento
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {customerDeliveryConfirmedLabel ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-500">Recebimento confirmado</p>
+                <p className="mt-1 leading-relaxed">Confirmado em {customerDeliveryConfirmedLabel}.</p>
               </div>
             ) : null}
             {closedAtLabel ? (

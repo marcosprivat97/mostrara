@@ -46,6 +46,7 @@ interface Order {
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
   courier_delivery_photo_url?: string;
+  customer_delivery_confirmed_at?: string | null;
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
@@ -549,6 +550,11 @@ export default function DashboardOrdersKanban() {
                                 <p className="px-3 pt-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">Foto da entrega</p>
                                 <img src={order.courier_delivery_photo_url} alt="Foto da entrega" className="mt-2 h-32 w-full object-cover" />
                               </div>
+                            )}
+                            {order.customer_delivery_confirmed_at && (
+                              <p className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                                Cliente confirmou {new Date(order.customer_delivery_confirmed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </p>
                             )}
                             {order.delivery_problem_at && (
                               <p className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">

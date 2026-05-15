@@ -18,6 +18,7 @@ import {
   resolveStoreTaxonomyFromProfile,
 } from "../lib/store-taxonomy.js";
 import { evolutionService } from "../lib/evolution.js";
+import { normalizeDeliveryConfirmationCode } from "../lib/delivery-code.js";
 import { formatProduct, parseOptions } from "../lib/product-data.js";
 import {
   buildAvailableSlots,
@@ -793,6 +794,101 @@ router.get("/:storeSlug/orders/:orderId/payment", async (req, res) => {
   }
 });
 
+router.post("/:storeSlug/orders/:orderId/confirm-delivery", async (req, res) => {
+  try {
+    const { storeSlug, orderId } = req.params;
+    const confirmationCode = normalizeDeliveryConfirmationCode(req.body?.delivery_code ?? req.body?.code);
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.store_slug, storeSlug), eq(usersTable.active, true)));
+
+    if (!user) {
+      res.status(404).json({ error: "Loja nao encontrada" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, orderId), eq(ordersTable.user_id, user.id)))
+      .limit(1);
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "entregue") {
+      res.status(400).json({ error: "Este pedido ainda nao pode ser confirmado" });
+      return;
+    }
+
+    if (order.customer_delivery_confirmed_at) {
+      res.status(409).json({ error: "Este pedido ja foi confirmado pelo cliente" });
+      return;
+    }
+
+    const storedCode = normalizeDeliveryConfirmationCode(order.delivery_confirmation_code);
+    if (storedCode && confirmationCode !== storedCode) {
+      res.status(400).json({ error: "Codigo de entrega invalido" });
+      return;
+    }
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({ customer_delivery_confirmed_at: new Date() })
+      .where(and(eq(ordersTable.id, order.id), eq(ordersTable.user_id, user.id)))
+      .returning();
+
+    let courierInfo: { owner_name: string; whatsapp: string } | null = null;
+    if (updatedOrder.assigned_courier_id) {
+      const [courier] = await db
+        .select({
+          owner_name: usersTable.owner_name,
+          whatsapp: usersTable.whatsapp,
+        })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.id, updatedOrder.assigned_courier_id),
+          eq(usersTable.account_role, "courier"),
+        ))
+        .limit(1);
+      if (courier) {
+        courierInfo = { owner_name: courier.owner_name, whatsapp: courier.whatsapp };
+      }
+    }
+
+    const instanceName = `mostrara_store_${user.id}`;
+    const merchantMessage = `O cliente confirmou o recebimento do pedido na *${user.store_name}*.`;
+    const customerMessage = `Seu pedido na *${user.store_name}* foi confirmado com sucesso. Obrigado!`;
+    const courierMessage = `O cliente confirmou o recebimento do pedido na loja *${user.store_name}*.`;
+
+    if (user.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, user.whatsapp, merchantMessage).catch(() => undefined);
+    }
+    if (updatedOrder.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, updatedOrder.customer_whatsapp, customerMessage).catch(() => undefined);
+    }
+    if (courierInfo?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, courierInfo.whatsapp, courierMessage).catch(() => undefined);
+    }
+
+    res.json({
+      order: {
+        ...updatedOrder,
+        items: (() => {
+          try { return JSON.parse(updatedOrder.items || "[]"); } catch { return []; }
+        })(),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "ConfirmDelivery error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
 router.get("/:storeSlug/orders/:orderId", async (req, res) => {
   try {
     const { storeSlug, orderId } = req.params;
@@ -860,6 +956,7 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_delivered_at: orderAfterEtaCheck.courier_delivered_at,
         courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,
         courier_delivery_photo_url: orderAfterEtaCheck.courier_delivery_photo_url,
+        customer_delivery_confirmed_at: orderAfterEtaCheck.customer_delivery_confirmed_at,
         closed_at: orderAfterEtaCheck.closed_at,
         delivery_reopened_at: orderAfterEtaCheck.delivery_reopened_at,
         delivery_reopen_note: orderAfterEtaCheck.delivery_reopen_note,
