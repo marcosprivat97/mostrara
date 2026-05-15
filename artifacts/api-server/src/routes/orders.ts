@@ -50,6 +50,8 @@ type MerchantCourier = {
   store_name: string;
 };
 
+type CourierAssignmentStatus = "unassigned" | "pending" | "accepted" | "declined";
+
 async function selectActiveMerchantCourier(merchantId: string): Promise<MerchantCourier | null> {
   const [courier] = await db
     .select({
@@ -70,7 +72,7 @@ async function selectActiveMerchantCourier(merchantId: string): Promise<Merchant
   return (courier as MerchantCourier | undefined) ?? null;
 }
 
-function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string, statusLabel = "Novo pedido atribuido para voce") {
+function buildCourierAssignmentMessage(order: typeof ordersTable.$inferSelect, storeName: string, statusLabel = "Pedido aguardando sua aceitacao") {
   const items = parseItems(order.items)
     .map((item) => `${item.quantity}x ${item.name}`)
     .join(", ");
@@ -255,6 +257,12 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "entregue" ? { confirmed_at: currentOrder.confirmed_at || new Date() } : {}),
         ...(status === "cancelado" ? { canceled_at: new Date() } : {}),
         ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
+        ...(status === "saiu_entrega"
+          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date() }
+          : {}),
+        ...(status === "em_rota" && assignedCourierId
+          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date() }
+          : {}),
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
@@ -360,7 +368,7 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
           const courierMessage = buildCourierAssignmentMessage(
             updatedOrder,
             storeName,
-            status === "em_rota" ? "Seu pedido saiu para entrega" : "Novo pedido atribuido para voce",
+            status === "em_rota" ? "Seu pedido saiu para entrega" : "Pedido aguardando sua aceitacao",
           );
           const instanceName = `mostrara_store_${req.userId}`;
           void evolutionService.sendTextMessage(instanceName, courierTarget.whatsapp, courierMessage).catch((err) => {
@@ -427,6 +435,8 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
       .update(ordersTable)
       .set({
         assigned_courier_id: courierId || null,
+        courier_assignment_status: courierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus),
+        courier_assignment_updated_at: new Date(),
       })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),

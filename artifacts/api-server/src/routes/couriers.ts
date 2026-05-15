@@ -14,6 +14,8 @@ type CourierUser = typeof usersTable.$inferSelect & {
   parent_user_id?: string | null;
 };
 
+type CourierAssignmentStatus = "unassigned" | "pending" | "accepted" | "declined";
+
 function parseItems(items: string | null): Array<{
   product_id: string;
   name: string;
@@ -87,6 +89,24 @@ function buildCourierCustomerMessage(storeName: string, status: "em_rota" | "ent
     return `Seu pedido na *${storeName}* saiu para entrega e ja esta a caminho. Fique atento ao WhatsApp.`;
   }
   return `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
+}
+
+function buildCourierResponseMessages(
+  storeName: string,
+  courierName: string,
+  response: "accepted" | "declined",
+) {
+  if (response === "accepted") {
+    return {
+      merchant: `O entregador ${courierName} aceitou a entrega do pedido na *${storeName}*.`,
+      customer: `Seu pedido na *${storeName}* foi aceito pelo entregador ${courierName} e ja esta em preparacao para a saida.`,
+    };
+  }
+
+  return {
+    merchant: `O entregador ${courierName} recusou a entrega do pedido na *${storeName}*. A loja precisa redistribuir este pedido.`,
+    customer: `Seu pedido na *${storeName}* precisou ser redistribuido e a loja ja esta chamando outro entregador.`,
+  };
 }
 
 router.get("/", async (req: AuthRequest, res) => {
@@ -220,7 +240,11 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
 
     const [updatedOrder] = await db
       .update(ordersTable)
-      .set({ status: "em_rota" })
+      .set({
+        status: "em_rota",
+        courier_assignment_status: "accepted" as CourierAssignmentStatus,
+        courier_assignment_updated_at: new Date(),
+      })
       .where(and(
         eq(ordersTable.id, order.id),
         eq(ordersTable.user_id, currentUser.parent_user_id),
@@ -235,6 +259,139 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "CourierOnRoute error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/orders/:id/accept", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "saiu_entrega") {
+      res.status(400).json({ error: "Este pedido ainda nao pode ser aceito" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        courier_assignment_status: "accepted" as CourierAssignmentStatus,
+        courier_assignment_updated_at: new Date(),
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const response = buildCourierResponseMessages(
+      merchant?.store_name || "nossa loja",
+      currentUser.owner_name,
+      "accepted",
+    );
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, response.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, response.customer).catch(() => undefined);
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierAccept error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/orders/:id/decline", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (order.status !== "saiu_entrega") {
+      res.status(400).json({ error: "Este pedido nao pode ser recusado agora" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        assigned_courier_id: null,
+        courier_assignment_status: "declined" as CourierAssignmentStatus,
+        courier_assignment_updated_at: new Date(),
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const response = buildCourierResponseMessages(
+      merchant?.store_name || "nossa loja",
+      currentUser.owner_name,
+      "declined",
+    );
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, response.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, response.customer).catch(() => undefined);
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierDecline error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });

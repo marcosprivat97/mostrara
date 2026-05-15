@@ -42,6 +42,7 @@ interface TrackingOrder {
   notes?: string;
   assigned_courier_name?: string;
   assigned_courier_whatsapp?: string;
+  courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   items: TrackingItem[];
 }
 
@@ -265,6 +266,14 @@ export default function OrderTracking() {
   const paymentMethod = PAYMENT_METHOD_LABELS[order?.payment_method || ""] || order?.payment_method || "";
   const deliveryMethod = DELIVERY_METHOD_LABELS[order?.delivery_method || "delivery"] || "Entrega";
   const courierLabel = order?.assigned_courier_name || "";
+  const courierAssignmentStatus = order?.courier_assignment_status || "unassigned";
+  const courierAssignmentLabel = courierAssignmentStatus === "accepted"
+    ? "Entrega aceita"
+    : courierAssignmentStatus === "declined"
+      ? "Entrega recusada"
+      : courierAssignmentStatus === "pending"
+        ? "Aguardando aceitação"
+        : "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -630,6 +639,21 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>Entregador</span>
                 <span className="text-right font-medium text-gray-900">{courierLabel}</span>
+              </div>
+            ) : null}
+            {courierAssignmentLabel ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Status do entregador</span>
+                <span className={cn(
+                  "text-right font-semibold",
+                  courierAssignmentStatus === "accepted"
+                    ? "text-emerald-700"
+                    : courierAssignmentStatus === "declined"
+                      ? "text-red-700"
+                      : "text-amber-700",
+                )}>
+                  {courierAssignmentLabel}
+                </span>
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (

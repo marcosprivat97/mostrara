@@ -35,6 +35,7 @@ interface Order {
   status: "pendente" | "confirmado" | "preparando" | "saiu_entrega" | "em_rota" | "entregue" | "cancelado";
   created_at: string;
   assigned_courier_id?: string | null;
+  courier_assignment_status?: "unassigned" | "pending" | "accepted" | "declined" | string | null;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -381,6 +382,22 @@ export default function DashboardOrdersKanban() {
                                 </option>
                               ))}
                             </select>
+                            {order.courier_assignment_status && order.courier_assignment_status !== "unassigned" && (
+                              <p className={cn(
+                                "mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
+                                order.courier_assignment_status === "accepted"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : order.courier_assignment_status === "declined"
+                                    ? "bg-red-50 text-red-700"
+                                    : "bg-amber-50 text-amber-700",
+                              )}>
+                                {order.courier_assignment_status === "accepted"
+                                  ? "Entregador aceitou"
+                                  : order.courier_assignment_status === "declined"
+                                    ? "Entregador recusou"
+                                    : "Aguardando entregador"}
+                              </p>
+                            )}
                           </div>
                         )}
 

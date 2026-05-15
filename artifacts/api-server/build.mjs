@@ -117,17 +117,18 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-async function runPhaseThreeMigration() {
+async function runMigration(scriptName, label) {
   if (!process.env.DATABASE_URL) {
-    console.log("[build] DATABASE_URL ausente, migracao de fase 3 ignorada");
+    console.log(`[build] DATABASE_URL ausente, migracao de ${label} ignorada`);
     return;
   }
 
-  await import(new URL("./migrate_phase3.mjs", import.meta.url));
+  await import(new URL(`./${scriptName}`, import.meta.url));
 }
 
 try {
-  await runPhaseThreeMigration();
+  await runMigration("migrate_phase3.mjs", "fase 3");
+  await runMigration("migrate_phase6.mjs", "fase 6");
   await buildAll();
 } catch (err) {
   console.error(err);
