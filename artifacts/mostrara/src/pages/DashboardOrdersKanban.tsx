@@ -40,6 +40,7 @@ interface Order {
   courier_on_route_at?: string | null;
   courier_eta_at?: string | null;
   courier_eta_overdue_notified_at?: string | null;
+  courier_eta_alert_message?: string;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -513,6 +514,11 @@ export default function DashboardOrdersKanban() {
                             {order.courier_eta_overdue_notified_at && (
                               <p className="mt-2 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
                                 Alerta enviado
+                              </p>
+                            )}
+                            {order.courier_eta_alert_message && (
+                              <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                                {order.courier_eta_alert_message}
                               </p>
                             )}
                             {order.courier_arrived_at && (

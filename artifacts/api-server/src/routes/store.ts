@@ -58,10 +58,12 @@ function buildAddressLines(input: {
 }
 
 function buildEtaOverdueMessages(storeName: string, courierName: string, etaLabel: string) {
+  const merchant = `O pedido na *${storeName}* passou da previsao de entrega (${etaLabel}). Entregador: ${courierName || "nao atribuido"}.`;
   return {
-    merchant: `O pedido na *${storeName}* passou da previsao de entrega (${etaLabel}). Entregador: ${courierName || "nao atribuido"}.`,
+    merchant,
     customer: `Seu pedido na *${storeName}* passou da previsao de entrega. A loja ja recebeu um alerta e vai acompanhar a entrega.`,
     courier: `A entrega da loja *${storeName}* passou da previsao informada. Verifique a rota e atualize o ETA se necessario.`,
+    merchantLog: merchant,
   };
 }
 
@@ -96,6 +98,18 @@ async function notifyEtaOverdueIfNeeded(order: typeof ordersTable.$inferSelect, 
   void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, messages.customer).catch(() => undefined);
   if (courierInfo?.whatsapp) {
     void evolutionService.sendTextMessage(instanceName, courierInfo.whatsapp, messages.courier).catch(() => undefined);
+  }
+
+  if (updatedOrder.courier_eta_alert_message !== messages.merchantLog) {
+    const [loggedOrder] = await db
+      .update(ordersTable)
+      .set({ courier_eta_alert_message: messages.merchantLog })
+      .where(and(
+        eq(ordersTable.id, updatedOrder.id),
+        eq(ordersTable.user_id, updatedOrder.user_id),
+      ))
+      .returning();
+    return loggedOrder || updatedOrder;
   }
 
   return updatedOrder;
@@ -840,6 +854,7 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_on_route_at: orderAfterEtaCheck.courier_on_route_at,
         courier_eta_at: orderAfterEtaCheck.courier_eta_at,
         courier_eta_overdue_notified_at: orderAfterEtaCheck.courier_eta_overdue_notified_at,
+        courier_eta_alert_message: orderAfterEtaCheck.courier_eta_alert_message,
         courier_arrived_at: orderAfterEtaCheck.courier_arrived_at,
         courier_delivered_at: orderAfterEtaCheck.courier_delivered_at,
         courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,

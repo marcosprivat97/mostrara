@@ -318,6 +318,7 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
         courier_assignment_updated_at: new Date(),
         courier_on_route_at: new Date(),
         courier_eta_at: etaMinutes ? new Date(Date.now() + etaMinutes * 60_000) : order.courier_eta_at,
+        courier_eta_alert_message: "",
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -380,6 +381,7 @@ router.put("/orders/:id/eta", async (req: AuthRequest, res) => {
       .update(ordersTable)
       .set({
         courier_eta_at: new Date(Date.now() + etaMinutes * 60_000),
+        courier_eta_alert_message: "",
       })
       .where(and(
         eq(ordersTable.id, order.id),
