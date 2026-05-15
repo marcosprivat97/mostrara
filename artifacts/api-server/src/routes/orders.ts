@@ -134,20 +134,32 @@ router.post("/:id/confirm", async (req: AuthRequest, res: Response) => {
 
 router.post("/:id/cancel", async (req: AuthRequest, res: Response) => {
   try {
+    const [currentOrder] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, req.userId!),
+      ));
+
+    if (!currentOrder) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (currentOrder.status === "cancelado" || currentOrder.status === "entregue") {
+      res.status(400).json({ error: "Este pedido ja foi finalizado" });
+      return;
+    }
+
     const [updatedOrder] = await db
       .update(ordersTable)
       .set({ status: "cancelado", canceled_at: new Date() })
       .where(and(
         eq(ordersTable.id, String(req.params.id)),
         eq(ordersTable.user_id, req.userId!),
-        eq(ordersTable.status, "pendente"),
       ))
       .returning();
-
-    if (!updatedOrder) {
-      res.status(404).json({ error: "Pedido pendente nao encontrado" });
-      return;
-    }
 
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
@@ -254,6 +266,8 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         }
       } else if (status === "entregue") {
         message = `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
+      } else if (status === "cancelado") {
+        message = `Seu pedido na *${storeName}* foi cancelado pela loja. Se precisar, fale com a equipe no WhatsApp.`;
       }
 
       if (message) {

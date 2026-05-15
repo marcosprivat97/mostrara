@@ -513,13 +513,18 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   const today = useMemo(() => getSaoPauloToday(), []);
 
   const audioSuccess = useMemo(() => typeof Audio !== "undefined" ? new Audio("/sounds/success.mp3") : null, []);
+  const defaultDeliveryMethod = storeConfig.mode === "booking"
+    ? "pickup"
+    : storeConfig.capabilities.localDelivery
+    ? "delivery"
+    : "pickup";
   const [form, setForm] = useState({
     name: "",
     email: "",
     cpf: "",
     whatsapp: "",
     payment: "pix",
-    deliveryMethod: storeConfig.capabilities.localDelivery ? "delivery" : "pickup",
+    deliveryMethod: defaultDeliveryMethod,
     cep: "",
     street: "",
     number: "",
@@ -611,9 +616,16 @@ function CartSidebar({ open, onClose, storeWhatsapp, storeName, storeSlug, store
   };
 
   useEffect(() => {
+    if (storeConfig.mode === "booking") {
+      if (form.deliveryMethod === "delivery" && !supportsDelivery) {
+        setForm((current) => ({ ...current, deliveryMethod: "pickup" }));
+      }
+      return;
+    }
+
     if (supportsDelivery || form.deliveryMethod !== "delivery") return;
     setForm((current) => ({ ...current, deliveryMethod: supportsPickup ? "pickup" : "delivery" }));
-  }, [form.deliveryMethod, supportsDelivery, supportsPickup]);
+  }, [form.deliveryMethod, storeConfig.mode, supportsDelivery, supportsPickup]);
 
   useEffect(() => {
     if (!form.coupon.trim() || couponDiscount <= 0) return;

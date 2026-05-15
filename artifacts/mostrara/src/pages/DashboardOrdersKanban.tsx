@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToastSimple } from "@/hooks/useToastSimple";
 import { apiFetch } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
+import { resolveStoreTypeFromProfile } from "@/lib/store-types";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, ChefHat, Bike, CheckCircle2, AlertCircle, ShoppingBag, Printer, Phone, ChevronDown, ChevronUp, MapPin, CreditCard, Truck, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -78,7 +79,7 @@ function playNotificationSound() {
 }
 
 export default function DashboardOrdersKanban() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { success, error: toastError } = useToastSimple();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,8 @@ export default function DashboardOrdersKanban() {
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const storeType = resolveStoreTypeFromProfile(user);
+  const isBookingStore = storeType === "manicure" || storeType === "salao";
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -158,8 +161,14 @@ export default function DashboardOrdersKanban() {
     <div className="space-y-6 print:hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Gestão de Pedidos</h1>
-          <p className="text-sm text-gray-500 mt-1">Acompanhe e atualize o status dos seus pedidos em tempo real.</p>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+            {isBookingStore ? "Agenda e atendimentos" : "Gestão de Pedidos"}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {isBookingStore
+              ? "Acompanhe confirmações, cancelamentos e horários ocupados da agenda."
+              : "Acompanhe e atualize o status dos seus pedidos em tempo real."}
+          </p>
         </div>
       </div>
 
@@ -344,12 +353,12 @@ export default function DashboardOrdersKanban() {
                           >
                             <Printer className="w-4 h-4" />
                           </button>
-                          {order.status === "pendente" && (
+                          {order.status !== "cancelado" && order.status !== "entregue" && (
                             <button
                               onClick={() => updateStatus(order.id, "cancelado")}
                               className="px-3 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold py-2.5 rounded-xl transition-colors"
                             >
-                              Cancelar
+                              {isBookingStore ? "Cancelar agendamento" : "Cancelar"}
                             </button>
                           )}
                         </div>
