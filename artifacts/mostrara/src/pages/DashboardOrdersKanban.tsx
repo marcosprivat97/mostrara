@@ -44,6 +44,8 @@ interface Order {
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
+  delivery_problem_at?: string | null;
+  delivery_problem_note?: string;
   items: OrderItem[];
   cep?: string;
   street?: string;
@@ -485,6 +487,12 @@ export default function DashboardOrdersKanban() {
                             {order.courier_delivery_note && (
                               <p className="mt-2 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs leading-relaxed text-gray-600">
                                 {order.courier_delivery_note}
+                              </p>
+                            )}
+                            {order.delivery_problem_at && (
+                              <p className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
+                                Problema {new Date(order.delivery_problem_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                                {order.delivery_problem_note ? ` - ${order.delivery_problem_note}` : ""}
                               </p>
                             )}
                           </div>

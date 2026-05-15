@@ -152,6 +152,14 @@ function normalizeNote(value: unknown) {
   return value.trim().slice(0, 500);
 }
 
+function buildDeliveryProblemMessages(storeName: string, courierName: string, note: string) {
+  const baseNote = note || "Foi identificado um problema na entrega.";
+  return {
+    merchant: `O entregador ${courierName} reportou um problema no pedido da *${storeName}*: ${baseNote}`,
+    customer: `Seu pedido na *${storeName}* sofreu um imprevisto na entrega. A loja ja foi avisada e vai resolver o caso.`,
+  };
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -691,6 +699,8 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
         courier_delivered_at: new Date(),
         courier_delivery_note: deliveryNote,
         closed_at: null,
+        delivery_problem_at: null,
+        delivery_problem_note: "",
       })
       .where(and(
         eq(ordersTable.id, order.id),
@@ -705,6 +715,71 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "DeliverCourierOrder error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/orders/:id/problem", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    const currentStatus = String(order.status || "");
+    if (!["saiu_entrega", "em_rota"].includes(currentStatus)) {
+      res.status(400).json({ error: "Este pedido nao pode registrar problema agora" });
+      return;
+    }
+
+    const problemNote = normalizeNote(req.body?.note);
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        delivery_problem_at: new Date(),
+        delivery_problem_note: problemNote,
+        closed_at: null,
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const messages = buildDeliveryProblemMessages(merchant?.store_name || "nossa loja", currentUser.owner_name, problemNote);
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, messages.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, messages.customer).catch(() => undefined);
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierDeliveryProblem error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });

@@ -38,6 +38,8 @@ interface CourierOrder {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  delivery_problem_at?: string | null;
+  delivery_problem_note?: string;
   items: CourierOrderItem[];
 }
 
@@ -65,6 +67,7 @@ export default function CourierDashboard() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [routeingId, setRouteingId] = useState<string | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({});
+  const [problemNotes, setProblemNotes] = useState<Record<string, string>>({});
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
 
@@ -101,6 +104,23 @@ export default function CourierDashboard() {
       loadOrders();
     } catch (err) {
       error(err instanceof Error ? err.message : "Nao foi possivel concluir a entrega");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const reportProblem = async (orderId: string) => {
+    setUpdatingId(orderId);
+    try {
+      await apiFetch(`/couriers/orders/${orderId}/problem`, {
+        method: "PUT",
+        ...opts,
+        body: JSON.stringify({ note: problemNotes[orderId] || "" }),
+      });
+      success("Problema reportado");
+      loadOrders();
+    } catch (err) {
+      error(err instanceof Error ? err.message : "Nao foi possivel reportar o problema");
     } finally {
       setUpdatingId(null);
     }
@@ -192,6 +212,7 @@ export default function CourierDashboard() {
   const onRouteOrders = orders.filter((order) => order.status === "em_rota" && !order.courier_arrived_at);
   const arrivedOrders = orders.filter((order) => order.status === "em_rota" && Boolean(order.courier_arrived_at));
   const declinedOrders = orders.filter((order) => order.status === "saiu_entrega" && (order.courier_assignment_status ?? "") === "declined");
+  const problemOrders = orders.filter((order) => Boolean(order.delivery_problem_at));
   const queuedOrders = orders.filter((order) => order.status !== "saiu_entrega" && order.status !== "em_rota" && order.status !== "entregue");
   const deliveredOrders = orders.filter((order) => order.status === "entregue");
 
@@ -245,6 +266,10 @@ export default function CourierDashboard() {
             <p className="text-xs uppercase tracking-wider text-white/50">Entregues</p>
             <p className="text-3xl font-black mt-1">{deliveredOrders.length}</p>
           </div>
+          <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+            <p className="text-xs uppercase tracking-wider text-white/50">Problemas</p>
+            <p className="text-3xl font-black mt-1">{problemOrders.length}</p>
+          </div>
         </div>
       </div>
 
@@ -256,7 +281,7 @@ export default function CourierDashboard() {
           </div>
         )}
 
-        {!loading && pendingOrders.length === 0 && acceptedOrders.length === 0 && pickedUpOrders.length === 0 && onRouteOrders.length === 0 && arrivedOrders.length === 0 && queuedOrders.length === 0 && (
+        {!loading && pendingOrders.length === 0 && acceptedOrders.length === 0 && pickedUpOrders.length === 0 && onRouteOrders.length === 0 && arrivedOrders.length === 0 && queuedOrders.length === 0 && problemOrders.length === 0 && (
           <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-7 w-7" />
@@ -574,6 +599,7 @@ export default function CourierDashboard() {
                     )}
                     {order.courier_arrived_at && <p className="text-xs text-orange-700">Chegou {new Date(order.courier_arrived_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                     {order.courier_delivery_note && <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">{order.courier_delivery_note}</p>}
+                    {order.delivery_problem_at && <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">Problema {new Date(order.delivery_problem_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 lg:min-w-56">
@@ -597,6 +623,26 @@ export default function CourierDashboard() {
                       <MapPin className="h-4 w-4" />
                     )}
                     Marcar chegada
+                  </button>
+                  <textarea
+                    value={problemNotes[order.id] || ""}
+                    onChange={(event) => setProblemNotes((current) => ({ ...current, [order.id]: event.target.value }))}
+                    placeholder="Relatar problema da entrega"
+                    rows={2}
+                    className="w-full rounded-2xl border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => reportProblem(order.id)}
+                    disabled={updatingId === order.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-60 transition-colors"
+                  >
+                    {updatingId === order.id ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-700 border-t-transparent" />
+                    ) : (
+                      <Phone className="h-4 w-4" />
+                    )}
+                    Reportar problema
                   </button>
                   <textarea
                     value={deliveryNotes[order.id] || ""}
@@ -652,6 +698,7 @@ export default function CourierDashboard() {
                     )}
                     {order.reference && <p className="text-xs text-gray-400 italic">Ref.: {order.reference}</p>}
                     {order.notes && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">{order.notes}</p>}
+                    {order.delivery_problem_at && <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{order.delivery_problem_note || "Problema reportado"}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 lg:min-w-56">
@@ -675,6 +722,14 @@ export default function CourierDashboard() {
                       <CheckCircle2 className="h-4 w-4" />
                     )}
                     Confirmar entrega
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => reportProblem(order.id)}
+                    disabled={updatingId === order.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-60 transition-colors"
+                  >
+                    Reportar problema
                   </button>
                 </div>
               </div>

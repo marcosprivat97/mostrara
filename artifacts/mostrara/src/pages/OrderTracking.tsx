@@ -52,6 +52,8 @@ interface TrackingOrder {
   closed_at?: string | null;
   delivery_reopened_at?: string | null;
   delivery_reopen_note?: string;
+  delivery_problem_at?: string | null;
+  delivery_problem_note?: string;
   items: TrackingItem[];
 }
 
@@ -291,6 +293,8 @@ export default function OrderTracking() {
   const closedAtLabel = order?.closed_at ? formatDateTime(order.closed_at) : "";
   const deliveryReopenedLabel = order?.delivery_reopened_at ? formatDateTime(order.delivery_reopened_at) : "";
   const deliveryReopenNote = order?.delivery_reopen_note?.trim() || "";
+  const deliveryProblemLabel = order?.delivery_problem_at ? formatDateTime(order.delivery_problem_at) : "";
+  const deliveryProblemNote = order?.delivery_problem_note?.trim() || "";
   const appointmentLabel = order ? formatAppointment(order) : "";
   const progressScale = currentStepIndex / (STEPS.length - 1);
   const isCanceled = order?.status === "cancelado";
@@ -720,6 +724,13 @@ export default function OrderTracking() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Entrega reaberta</p>
                 <p className="mt-1 leading-relaxed">Nova tentativa iniciada em {deliveryReopenedLabel}.</p>
                 {deliveryReopenNote ? <p className="mt-2 text-xs text-amber-700">{deliveryReopenNote}</p> : null}
+              </div>
+            ) : null}
+            {deliveryProblemLabel ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-red-500">Problema na entrega</p>
+                <p className="mt-1 leading-relaxed">Reportado em {deliveryProblemLabel}.</p>
+                {deliveryProblemNote ? <p className="mt-2 text-xs text-red-700">{deliveryProblemNote}</p> : null}
               </div>
             ) : null}
             {order?.assigned_courier_whatsapp ? (
