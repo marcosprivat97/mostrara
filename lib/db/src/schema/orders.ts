@@ -19,6 +19,7 @@ export const ordersTable = pgTable("orders", {
   courier_eta_at: timestamp("courier_eta_at"),
   courier_eta_overdue_notified_at: timestamp("courier_eta_overdue_notified_at"),
   courier_eta_alert_message: text("courier_eta_alert_message").default(""),
+  delivery_confirmation_code: text("delivery_confirmation_code").default(""),
   courier_arrived_at: timestamp("courier_arrived_at"),
   courier_delivered_at: timestamp("courier_delivered_at"),
   courier_delivery_note: text("courier_delivery_note").default(""),

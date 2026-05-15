@@ -5,6 +5,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { db, ordersTable, usersTable } from "@workspace/db";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 import { evolutionService } from "../lib/evolution.js";
+import { normalizeDeliveryConfirmationCode } from "../lib/delivery-code.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -774,6 +775,13 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
       return;
     }
 
+    const storedCode = normalizeDeliveryConfirmationCode(order.delivery_confirmation_code);
+    const providedCode = normalizeDeliveryConfirmationCode(req.body?.delivery_code ?? req.body?.code);
+    if (storedCode && providedCode !== storedCode) {
+      res.status(400).json({ error: "Codigo de entrega invalido" });
+      return;
+    }
+
     const deliveryNote = normalizeNote(req.body?.note);
 
     const [updatedOrder] = await db
@@ -787,6 +795,7 @@ router.put("/orders/:id/delivered", async (req: AuthRequest, res) => {
         closed_at: null,
         delivery_problem_at: null,
         delivery_problem_note: "",
+        delivery_confirmation_code: order.delivery_confirmation_code || storedCode || "",
       })
       .where(and(
         eq(ordersTable.id, order.id),

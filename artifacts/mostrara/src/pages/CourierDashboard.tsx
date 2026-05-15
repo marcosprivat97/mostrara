@@ -39,6 +39,7 @@ interface CourierOrder {
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
+  delivery_confirmation_code?: string;
   delivery_problem_at?: string | null;
   delivery_problem_note?: string;
   delivery_problem_resolved_at?: string | null;
@@ -70,6 +71,7 @@ export default function CourierDashboard() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [routeingId, setRouteingId] = useState<string | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({});
+  const [deliveryCodes, setDeliveryCodes] = useState<Record<string, string>>({});
   const [problemNotes, setProblemNotes] = useState<Record<string, string>>({});
 
   const opts = useMemo(() => ({ token: token ?? undefined }), [token]);
@@ -101,7 +103,7 @@ export default function CourierDashboard() {
       await apiFetch(`/couriers/orders/${orderId}/delivered`, {
         method: "PUT",
         ...opts,
-        body: JSON.stringify({ note: deliveryNotes[orderId] || "" }),
+        body: JSON.stringify({ note: deliveryNotes[orderId] || "", delivery_code: deliveryCodes[orderId] || "" }),
       });
       success("Entrega confirmada");
       loadOrders();
@@ -681,6 +683,14 @@ export default function CourierDashboard() {
                     )}
                     Reportar problema
                   </button>
+                  <input
+                    value={deliveryCodes[order.id] || ""}
+                    onChange={(event) => setDeliveryCodes((current) => ({ ...current, [order.id]: event.target.value }))}
+                    placeholder="Codigo de entrega"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="w-full rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                  />
                   <textarea
                     value={deliveryNotes[order.id] || ""}
                     onChange={(event) => setDeliveryNotes((current) => ({ ...current, [order.id]: event.target.value }))}
@@ -750,6 +760,14 @@ export default function CourierDashboard() {
                     <Phone className="h-4 w-4" />
                     Falar com cliente
                   </button>
+                  <input
+                    value={deliveryCodes[order.id] || ""}
+                    onChange={(event) => setDeliveryCodes((current) => ({ ...current, [order.id]: event.target.value }))}
+                    placeholder="Codigo de entrega"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="w-full rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                  />
                   <button
                     type="button"
                     onClick={() => markDelivered(order.id)}

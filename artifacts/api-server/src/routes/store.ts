@@ -855,6 +855,7 @@ router.get("/:storeSlug/orders/:orderId", async (req, res) => {
         courier_eta_at: orderAfterEtaCheck.courier_eta_at,
         courier_eta_overdue_notified_at: orderAfterEtaCheck.courier_eta_overdue_notified_at,
         courier_eta_alert_message: orderAfterEtaCheck.courier_eta_alert_message,
+        delivery_confirmation_code: orderAfterEtaCheck.delivery_confirmation_code,
         courier_arrived_at: orderAfterEtaCheck.courier_arrived_at,
         courier_delivered_at: orderAfterEtaCheck.courier_delivered_at,
         courier_delivery_note: orderAfterEtaCheck.courier_delivery_note,

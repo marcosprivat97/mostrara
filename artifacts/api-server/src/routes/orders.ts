@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, ordersTable, salesTable, productsTable, usersTable } from "@workspace/db";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { evolutionService } from "../lib/evolution.js";
+import { generateDeliveryConfirmationCode } from "../lib/delivery-code.js";
 import { authMiddleware, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -311,9 +312,13 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
 
     let assignedCourierId = currentOrder.assigned_courier_id || null;
     let assignedCourier: MerchantCourier | null = null;
+    let deliveryConfirmationCode = currentOrder.delivery_confirmation_code || "";
     if (status === "saiu_entrega" && !assignedCourierId) {
       assignedCourier = await selectActiveMerchantCourier(req.userId!);
       assignedCourierId = assignedCourier?.id || null;
+    }
+    if ((status === "saiu_entrega" || status === "em_rota") && !deliveryConfirmationCode) {
+      deliveryConfirmationCode = generateDeliveryConfirmationCode();
     }
 
     const [updatedOrder] = await db
@@ -326,13 +331,13 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         ...(status === "entregue"
           ? { courier_arrived_at: currentOrder.courier_arrived_at || new Date() }
           : {}),
-        ...(status === "cancelado" ? { canceled_at: new Date(), courier_eta_at: null, courier_eta_overdue_notified_at: null, courier_eta_alert_message: "" } : {}),
+        ...(status === "cancelado" ? { canceled_at: new Date(), courier_eta_at: null, courier_eta_overdue_notified_at: null, courier_eta_alert_message: "", delivery_confirmation_code: "" } : {}),
         ...(status === "saiu_entrega" && assignedCourierId ? { assigned_courier_id: assignedCourierId } : {}),
         ...(status === "saiu_entrega"
-          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_eta_at: null, courier_eta_overdue_notified_at: null, courier_eta_alert_message: "", courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
+          ? { courier_assignment_status: assignedCourierId ? ("pending" as CourierAssignmentStatus) : ("unassigned" as CourierAssignmentStatus), courier_assignment_updated_at: new Date(), courier_pickup_at: null, courier_on_route_at: null, courier_eta_at: null, courier_eta_overdue_notified_at: null, courier_eta_alert_message: "", delivery_confirmation_code: deliveryConfirmationCode, courier_arrived_at: null, courier_delivered_at: null, courier_delivery_note: "", delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
         ...(status === "em_rota" && assignedCourierId
-          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date(), delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
+          ? { courier_assignment_status: "accepted" as CourierAssignmentStatus, courier_assignment_updated_at: new Date(), courier_on_route_at: new Date(), delivery_confirmation_code: deliveryConfirmationCode, delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
           : {}),
         ...(status === "entregue"
           ? { courier_arrived_at: currentOrder.courier_arrived_at || new Date(), courier_delivered_at: new Date(), delivery_problem_at: null, delivery_problem_note: "", delivery_problem_resolved_at: null, delivery_problem_resolution_note: "" }
@@ -399,12 +404,12 @@ router.put("/:id/status", async (req: AuthRequest, res: Response) => {
         }
       } else if (status === "saiu_entrega") {
         if (isDelivery) {
-          message = `Seu pedido na *${storeName}* foi liberado para a entrega e o entregador ja foi acionado.`;
+          message = `Seu pedido na *${storeName}* foi liberado para a entrega e o entregador ja foi acionado. Codigo de entrega: ${deliveryConfirmationCode}.`;
         } else {
           message = `Seu pedido na *${storeName}* ja esta pronto para retirada.`;
         }
       } else if (status === "em_rota") {
-        message = `Seu pedido na *${storeName}* saiu para entrega e ja esta a caminho. Fique atento ao WhatsApp.`;
+        message = `Seu pedido na *${storeName}* saiu para entrega e ja esta a caminho. Codigo de entrega: ${deliveryConfirmationCode}. Fique atento ao WhatsApp.`;
       } else if (status === "entregue") {
         message = `Seu pedido na *${storeName}* foi entregue com sucesso. Obrigado pela preferencia!`;
       } else if (status === "cancelado") {
@@ -569,6 +574,7 @@ router.put("/:id/reopen-delivery", async (req: AuthRequest, res: Response) => {
         courier_eta_at: null,
         courier_eta_overdue_notified_at: null,
         courier_eta_alert_message: "",
+        delivery_confirmation_code: "",
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
@@ -657,6 +663,7 @@ router.put("/:id/resolve-problem", async (req: AuthRequest, res: Response) => {
         courier_eta_at: null,
         courier_eta_overdue_notified_at: null,
         courier_eta_alert_message: "",
+        delivery_confirmation_code: "",
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",
@@ -763,6 +770,7 @@ router.put("/:id/assign-courier", async (req: AuthRequest, res: Response) => {
         courier_eta_at: null,
         courier_eta_overdue_notified_at: null,
         courier_eta_alert_message: "",
+        delivery_confirmation_code: "",
         courier_arrived_at: null,
         courier_delivered_at: null,
         courier_delivery_note: "",

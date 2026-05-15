@@ -41,6 +41,7 @@ interface Order {
   courier_eta_at?: string | null;
   courier_eta_overdue_notified_at?: string | null;
   courier_eta_alert_message?: string;
+  delivery_confirmation_code?: string;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -519,6 +520,12 @@ export default function DashboardOrdersKanban() {
                             {order.courier_eta_alert_message && (
                               <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
                                 {order.courier_eta_alert_message}
+                              </p>
+                            )}
+                            {order.delivery_confirmation_code && !["entregue", "cancelado"].includes(order.status) && (
+                              <p className="mt-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800">
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-sky-500">Codigo de entrega</span>
+                                <span className="block mt-1 text-sm font-black tracking-[0.22em]">{order.delivery_confirmation_code}</span>
                               </p>
                             )}
                             {order.courier_arrived_at && (

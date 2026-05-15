@@ -49,6 +49,7 @@ interface TrackingOrder {
   courier_eta_at?: string | null;
   courier_eta_overdue_notified_at?: string | null;
   courier_eta_alert_message?: string;
+  delivery_confirmation_code?: string;
   courier_arrived_at?: string | null;
   courier_delivered_at?: string | null;
   courier_delivery_note?: string;
@@ -296,6 +297,7 @@ export default function OrderTracking() {
   const courierEtaOverdue = Boolean(order?.courier_eta_at) && !["entregue", "cancelado"].includes(order?.status || "") && new Date(order?.courier_eta_at || "").getTime() < Date.now();
   const courierEtaAlerted = Boolean(order?.courier_eta_overdue_notified_at);
   const courierEtaAlertMessage = order?.courier_eta_alert_message?.trim() || "";
+  const deliveryConfirmationCode = order?.delivery_confirmation_code?.trim() || "";
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
@@ -728,6 +730,13 @@ export default function OrderTracking() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Ultimo alerta ETA</p>
                 <p className="mt-1 leading-relaxed">{courierEtaAlertMessage}</p>
+              </div>
+            ) : null}
+            {deliveryConfirmationCode && !["entregue", "cancelado"].includes(order.status) ? (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-sky-500">Codigo de entrega</p>
+                <p className="mt-1 text-lg font-black tracking-[0.22em]">{deliveryConfirmationCode}</p>
+                <p className="mt-1 text-xs leading-relaxed text-sky-700">Informe este codigo ao entregador na finalizacao do pedido.</p>
               </div>
             ) : null}
             {courierArrivedLabel ? (
