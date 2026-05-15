@@ -167,6 +167,13 @@ function buildDeliveryProblemMessages(storeName: string, courierName: string, no
   };
 }
 
+function buildEtaMessages(storeName: string, courierName: string, etaMinutes: number) {
+  return {
+    merchant: `O entregador ${courierName} atualizou a previsao do pedido na *${storeName}* para cerca de ${etaMinutes} minutos.`,
+    customer: `Seu pedido na *${storeName}* recebeu uma nova previsao de entrega de aproximadamente ${etaMinutes} minutos.`,
+  };
+}
+
 router.get("/", async (req: AuthRequest, res) => {
   try {
     const currentUser = await getCurrentUser(req.userId!);
@@ -326,6 +333,73 @@ router.put("/orders/:id/on-route", async (req: AuthRequest, res) => {
     res.json({ order: formatOrder(updatedOrder) });
   } catch (err) {
     req.log.error({ err }, "CourierOnRoute error");
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+});
+
+router.put("/orders/:id/eta", async (req: AuthRequest, res) => {
+  try {
+    const currentUser = await getCurrentUser(req.userId!);
+    if (!currentUser || (currentUser.account_role ?? "merchant") !== "courier" || !currentUser.parent_user_id) {
+      res.status(403).json({ error: "Acesso restrito ao entregador" });
+      return;
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(and(
+        eq(ordersTable.id, String(req.params.id)),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ));
+
+    if (!order) {
+      res.status(404).json({ error: "Pedido nao encontrado" });
+      return;
+    }
+
+    if (!["saiu_entrega", "em_rota"].includes(String(order.status || ""))) {
+      res.status(400).json({ error: "Este pedido ainda nao pode atualizar o ETA" });
+      return;
+    }
+
+    const etaMinutes = normalizeEtaMinutes(req.body?.eta_minutes);
+    if (!etaMinutes) {
+      res.status(400).json({ error: "Informe um ETA valido entre 5 e 240 minutos" });
+      return;
+    }
+
+    const [merchant] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, currentUser.parent_user_id))
+      .limit(1);
+
+    const [updatedOrder] = await db
+      .update(ordersTable)
+      .set({
+        courier_eta_at: new Date(Date.now() + etaMinutes * 60_000),
+      })
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.user_id, currentUser.parent_user_id),
+        eq(ordersTable.assigned_courier_id, currentUser.id),
+      ))
+      .returning();
+
+    const instanceName = `mostrara_store_${currentUser.parent_user_id}`;
+    const messages = buildEtaMessages(merchant?.store_name || "nossa loja", currentUser.owner_name, etaMinutes);
+    if (merchant?.whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, merchant.whatsapp, messages.merchant).catch(() => undefined);
+    }
+    if (order.customer_whatsapp) {
+      void evolutionService.sendTextMessage(instanceName, order.customer_whatsapp, messages.customer).catch(() => undefined);
+    }
+
+    res.json({ order: formatOrder(updatedOrder) });
+  } catch (err) {
+    req.log.error({ err }, "CourierEtaUpdate error");
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 });

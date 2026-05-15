@@ -291,6 +291,7 @@ export default function OrderTracking() {
   const courierPickupLabel = order?.courier_pickup_at ? formatDateTime(order.courier_pickup_at) : "";
   const courierOnRouteLabel = order?.courier_on_route_at ? formatDateTime(order.courier_on_route_at) : "";
   const courierEtaLabel = order?.courier_eta_at ? formatDateTime(order.courier_eta_at) : "";
+  const courierEtaOverdue = Boolean(order?.courier_eta_at) && !["entregue", "cancelado"].includes(order?.status || "") && new Date(order?.courier_eta_at || "").getTime() < Date.now();
   const courierArrivedLabel = order?.courier_arrived_at ? formatDateTime(order.courier_arrived_at) : "";
   const courierDeliveredLabel = order?.courier_delivered_at ? formatDateTime(order.courier_delivered_at) : "";
   const courierDeliveryNote = order?.courier_delivery_note?.trim() || "";
@@ -705,6 +706,12 @@ export default function OrderTracking() {
               <div className="flex justify-between gap-4 text-gray-500">
                 <span>ETA</span>
                 <span className="text-right font-medium text-amber-700">{courierEtaLabel}</span>
+              </div>
+            ) : null}
+            {courierEtaOverdue ? (
+              <div className="flex justify-between gap-4 text-gray-500">
+                <span>Status</span>
+                <span className="text-right font-semibold text-red-700">Atrasado</span>
               </div>
             ) : null}
             {courierArrivedLabel ? (
